@@ -60,12 +60,12 @@ namespace CarrionManagerConsole
 
 			foreach (var level in map.Levels) {
 				string sourcePath = Path.Combine(levelSourcePath, level);
-				string destinationPath = Path.Combine(Program.InstalledLevelsPath, level);
+				string destinationPath = Path.Combine(Program.installedLevelsPath, level);
 				File.Copy(sourcePath, destinationPath, overwrite);
 			}
 			foreach (var script in map.Scripts) {
 				string sourcePath = Path.Combine(scriptSourcePath, script);
-				string destinationPath = Path.Combine(Program.InstalledScriptsPath, script);
+				string destinationPath = Path.Combine(Program.installedScriptsPath, script);
 				File.Copy(sourcePath, destinationPath, overwrite);
 			}
 
@@ -105,7 +105,6 @@ namespace CarrionManagerConsole
 
 						var selectedItem = selection.list.SelectedItem;
 						selectedItem.Highlight();
-						selectedItem.Draw();
 
 						if (selection.columnIndex == 0) { // Installed Maps -> Uninstall
 							textBox.Clear();
@@ -164,11 +163,11 @@ namespace CarrionManagerConsole
 		public void UninstallMap(Map map) {
 			textBox.WriteLine(String.Format("Uninstalling map {0}...", map.Name));
 			foreach (var level in map.Levels) {
-				var levelPath = Path.Combine(Program.InstalledLevelsPath, level);
+				var levelPath = Path.Combine(Program.installedLevelsPath, level);
 				File.Delete(levelPath);
 			}
 			foreach (var script in map.Scripts) {
-				var scriptPath = Path.Combine(Program.InstalledScriptsPath, script);
+				var scriptPath = Path.Combine(Program.installedScriptsPath, script);
 				File.Delete(scriptPath);
 			}
 			Program.installedMaps.Remove(map);
@@ -202,14 +201,14 @@ namespace CarrionManagerConsole
 			// Check which files already exist
 			var existingLevels = new List<string>();
 			foreach (var level in map.Levels) {
-				string correspondingLevel = Path.Combine(Program.InstalledLevelsPath, level);
+				string correspondingLevel = Path.Combine(Program.installedLevelsPath, level);
 				if (File.Exists(correspondingLevel)) {
 					existingLevels.Add(level);
 				}
 			}
 			var existingScripts = new List<string>();
 			foreach (var script in map.Scripts) {
-				string correspondingScript = Path.Combine(Program.InstalledScriptsPath, script);
+				string correspondingScript = Path.Combine(Program.installedScriptsPath, script);
 				if (File.Exists(correspondingScript)) {
 					existingScripts.Add(script);
 				}

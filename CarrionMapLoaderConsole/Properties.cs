@@ -73,6 +73,8 @@ namespace CarrionManagerConsole
 			SetStartupLevel = "Set Startup Level",
 			Launch = "Launch",
 			MainGame = "Main Game",
+			Unknown = "Unknown",
+			BackedUpMap = "Backed up map \"{0}\"",
 
 			NavigationWindowTitle = "Navigation Window",
 			LauncherWindowTitle = "Launcher",

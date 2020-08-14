@@ -54,7 +54,9 @@ namespace CarrionManagerConsole
 			LevelFolderName = "Levels", LevelFileExtension = ".json",
 			ScriptFolderName = "Scripts", ScriptFileExtension = ".cgs",
 			ContentFolderName = "Content",
-			SavesFolderName = "Saves";
+			saveFolderName = "Saves", SaveFileExtension = ".crn",
+			BackupFolderName = "Backups",
+			SavesBackupsFolderName = "Saves", SaveInfoFileName = "SaveInfo.txt";
 		public const string
 			SteamRegistryPath = @"Computer\HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Valve\Steam",
 			SteamRegistryKey = "InstallPath",
@@ -67,15 +69,20 @@ namespace CarrionManagerConsole
 		public const int MaxSubfolderIterations = 10; // The maximum number of nested subfolders this program will look through to find a custom map.
 
 		public static string
-			steamPath,
-			gameRootPath,
-			gameContentPath,
-			gameExePath,
-			customMapsPath,
 			appDataPath,
+			backupsPath,
+			configFilePath,
+			customMapsPath,
+			gameContentPath,
+			gameRootPath,
+			gameExePath,
+			installedLevelsPath,
 			installedMapsPath,
-			savesPath,
-			savesBackupPath;
+			installedScriptsPath,
+			steamPath,
+			saveBackupsPath,
+			saveInfoFilePath,
+			saveFolderPath;
 		#endregion
 
 		public static Dictionary<ConsoleKey, Properties.Command> keybindings;
@@ -91,10 +98,6 @@ namespace CarrionManagerConsole
 		public static NavigationWindow navigationWindow;
 		public static MapInstallerWindow mapInstallerWindow;
 		public static SaveManagerWindow saveManagerWindow;
-
-		public static string ConfigFilePath = Path.Combine(Directory.GetCurrentDirectory(), ConfigFileName);
-		public static string InstalledLevelsPath { get { return Path.Combine(gameContentPath, LevelFolderName); } }
-		public static string InstalledScriptsPath { get { return Path.Combine(gameContentPath, ScriptFolderName); } }
 
 		static Program() {
 			controlsLabel = new GUI.Label(0, Console.WindowHeight - 1, Console.WindowWidth - 1, 1, MenuColor.ControlsBG, MenuColor.ControlsFG, Text.DefaultControls);
@@ -199,11 +202,13 @@ namespace CarrionManagerConsole
 
 		private static void LoadSettings() {
 			Console.WriteLine("Loading settings file...");
-			Console.WriteLine(ConfigFilePath);
+			var thisPath = Directory.GetCurrentDirectory();
+			configFilePath = Path.Combine(thisPath, ConfigFileName);
+
 			Console.WriteLine();
-			if (!File.Exists(ConfigFilePath)) {
+			if (!File.Exists(configFilePath)) {
 				Console.WriteLine("ERROR: Config file not found. New one with default settings was created:");
-				Console.WriteLine(ConfigFilePath);
+				Console.WriteLine(configFilePath);
 				Console.WriteLine("\nOpen this file and adjust all settings:");
 				Console.WriteLine(Text.ConfigSteamPathDescription);
 				Console.WriteLine(Text.ConfigGamePathDescription);
@@ -214,7 +219,8 @@ namespace CarrionManagerConsole
 				SaveSettings();
 				throw new Exception("Settings could not be loaded! See previous messages for details.");
 			}
-			var settings = ReadInfoFile(ConfigFilePath);
+			Console.WriteLine(configFilePath);
+			var settings = ReadInfoFile(configFilePath);
 			List<string> missingSettings = new List<string>();
 
 			if (!settings.ContainsKey("SteamPath")) {
@@ -243,8 +249,15 @@ namespace CarrionManagerConsole
 			customMapsPath = settings["CustomMapsPath"];
 			appDataPath = settings["AppDataPath"];
 
-			gameContentPath = Path.Combine(gameRootPath, ContentFolderName);
 			gameExePath = Path.Combine(gameRootPath, GameExeName);
+			gameContentPath = Path.Combine(gameRootPath, ContentFolderName);
+			installedLevelsPath = Path.Combine(gameContentPath, LevelFolderName);
+			installedScriptsPath = Path.Combine(gameContentPath, ScriptFolderName);
+			saveFolderPath = Path.Combine(appDataPath, saveFolderName);
+			saveInfoFilePath = Path.Combine(Program.saveFolderPath, Program.SaveInfoFileName);
+			backupsPath = Path.Combine(thisPath, BackupFolderName);
+			saveBackupsPath = Path.Combine(backupsPath, SavesBackupsFolderName);
+			Directory.CreateDirectory(saveBackupsPath);
 		}
 
 		public static string[] MapListToStringArray(List<Map> maps) {
@@ -310,7 +323,7 @@ namespace CarrionManagerConsole
 				["CustomMapsPath"] = customMapsPath,
 				["AppDataPath"] = appDataPath
 			};
-			SaveInfoFile(ConfigFilePath, settings);
+			SaveInfoFile(configFilePath, settings);
 		}
 
 		public static void SaveInfoFile(string path, Dictionary<string, string> settings) {

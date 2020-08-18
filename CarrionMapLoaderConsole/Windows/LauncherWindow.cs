@@ -23,7 +23,9 @@ namespace CarrionManagerConsole
 			int width = Console.WindowWidth;
 			int halfWidth = width / 2;
 			int height = Console.WindowHeight;
-			title = new GUI.Label(0, 0, width, 1, MenuColor.LauncherWindowTitleBG, MenuColor.LauncherWindowTitleFG, Text.LauncherWindowTitle);
+			title = new GUI.Label(0, 0, width, 1, MenuColor.LauncherWindowTitleBG, MenuColor.LauncherWindowTitleFG, Text.LauncherWindowTitle) {
+				HorizontalAlignment = Properties.HorizontalAlignment.Center
+			};
 			mapsMenu = new GUI.ListMenu(0, 1, halfWidth, height - 10, 1, MenuColor.ContentBG, MenuColor.ContentFG);
 			menuDetailsSeparator = new GUI.Box(halfWidth - 1, 1, 1, height - 10, MenuColor.SeparatorBG, MenuColor.SeparatorFG);
 			detailsTextBox = new GUI.TextBox(halfWidth, 1, halfWidth - 1, height - 10, MenuColor.ContentBG, MenuColor.ContentFG);
@@ -35,12 +37,28 @@ namespace CarrionManagerConsole
 		}
 
 		public void LaunchGame(Map customMap) {
-			var args = Program.LaunchGameArgument;
-			if (customMap != null) {
-				args += string.Format(Program.CustomLevelArgument, customMap.startupLevel);
+			string args = string.Empty;
+			ProcessStartInfo info;
+			switch (Program.gameLaunchMethod) {
+				case Properties.GameLaunchMethod.Directly:
+					if (customMap != null) {
+						args = string.Format(Program.CustomLevelArgument, customMap.startupLevel);
+					}
+					info = new ProcessStartInfo(Program.gameExePath, args);
+					logTextBox.WriteLine(string.Format("Started: carrion.exe {0}", info.Arguments));
+					break;
+				case Properties.GameLaunchMethod.Steam:
+					args = Program.LaunchSteamGameArgument;
+					if (customMap != null) {
+						args += string.Format(Program.CustomLevelArgument, customMap.startupLevel);
+					}
+					info = new ProcessStartInfo(Program.steamPath, args);
+					logTextBox.WriteLine(string.Format("Started: steam.exe {0}", info.Arguments));
+					break;
+				default:
+					throw new Exception(string.Format("LaunchGame ERROR: Invalid launch method \"{0}\"", Program.gameLaunchMethod.ToString()));
 			}
-			var info = new ProcessStartInfo(Program.steamPath, args);
-			logTextBox.WriteLine(String.Format("Started: steam.exe {0}", info.Arguments));
+			
 			logTextBox.WriteLine("This might take a few seconds...");
 			Process.Start(info);
 		}
@@ -86,26 +104,55 @@ namespace CarrionManagerConsole
 						}
 						logTextBox.Clear();
 						var map = Program.mapInstallerWindow.FindInstalledMap(selection.Text);
+						string mapName;
+						if (selection.rowIndex == 0) {
+							mapName = Text.MainGame;
+						} else {
+							mapName = map.Name;
+						}
 						var options = new GUI.SelectionPrompt.Options() { cancel = true };
 						if (selection.rowIndex == 0) { // main map
-							options.disabledItems = new int[] { 1 };
-							options.index = 0;
+							options.disabledItems.Add(2); // Disable "Set Startup Level"
+						} else {
+							if (map.startupLevel == null) {
+								options.disabledItems.Add(1); // Disable "New Game"
+							}
+							if (!Program.saveManagerWindow.MapHasSave(map)) {
+								options.disabledItems.Add(0); // Disable "Continue"
+							}
 						}
-						else if (map.startupLevel == null) {
-							options.disabledItems = new int[] { 0 };
-							options.index = 1;
-						}
-						int response = selectionPrompt.PromptSelection(new string[] { Text.Launch, Text.SetStartupLevel }, options);
+						int response = selectionPrompt.PromptSelection(
+							new string[] {
+								Text.Continue,
+								Text.NewGame,
+								Text.SetStartupLevel },
+							options);
 						switch (response) {
-							case 0:
-								if (selection.rowIndex == 0) {
+							case 0: // Continue
+								try {
+									if (Program.manageSaves &&
+										Program.saveManagerWindow.GetCurrentSavedMapName() != mapName) {
+										logTextBox.WriteLine(Text.PreparingSaveFile);
+										Program.saveManagerWindow.SwapSaves(mapName);
+									}
 									LaunchGame(null);
-								}
-								else {
-									LaunchGame(map);
+								} catch (Exception e) {
+									logTextBox.WriteLine(String.Format("ERROR: {0}", e.Message));
 								}
 								break;
-							case 1:
+							case 1: // New Game
+								try {
+									if (Program.manageSaves) {
+										logTextBox.WriteLine(Text.BackUpCurrentSave);
+										Program.saveManagerWindow.BackupCurrentSave();
+										Program.saveManagerWindow.SetCurrentSave(mapName);
+									}
+									LaunchGame((selection.rowIndex == 0) ? null : map);
+								} catch (Exception e) {
+									logTextBox.WriteLine(String.Format("ERROR: {0}", e.Message));
+								}
+								break;
+							case 2: // Set Startup Level
 								SetStartupLevel(map);
 								break;
 						}

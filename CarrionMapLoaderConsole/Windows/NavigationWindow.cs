@@ -16,8 +16,12 @@ namespace CarrionManagerConsole
 		public NavigationWindow() {
 			var width = Console.WindowWidth;
 			//var height = Console.WindowHeight;
-			titleLabel = new GUI.Label(0, 0, width, 1, MenuColor.NavigationWindowTitleBG, MenuColor.NavigationWindowTitleFG, windowName);
-			windowsMenu = new GUI.ListMenu(2, 3, 40, 10, 1, MenuColor.ContentBG, MenuColor.ContentFG);
+			titleLabel = new GUI.Label(0, 0, width, 1, MenuColor.NavigationWindowTitleBG, MenuColor.NavigationWindowTitleFG, windowName) {
+				HorizontalAlignment = Properties.HorizontalAlignment.Center
+			};
+			windowsMenu = new GUI.ListMenu(2, 3, 40, 10, 1, MenuColor.ContentBG, MenuColor.ContentFG) {
+				ForceShowScrollBar = false
+			};
 			windowsMenu.SetColumnContent(0, "Windows", Program.windowNames);
 
 			windowNumberTextBox = new GUI.TextBox(0, 4, 1, 10, MenuColor.ContentBG, MenuColor.ContentFG) {
@@ -41,8 +45,7 @@ namespace CarrionManagerConsole
 
 			if (nextWindow == null || nextWindow == Program.currentWindow) {
 				return false;
-			}
-			else {
+			} else {
 				Program.currentWindow = nextWindow;
 				return true;
 			}

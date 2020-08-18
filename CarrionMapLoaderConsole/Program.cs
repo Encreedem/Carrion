@@ -9,7 +9,8 @@ using System.Text.RegularExpressions;
 
 namespace CarrionManagerConsole
 {
-	class Program {
+	class Program
+	{
 		/* Carrion Map Loader by Encreedem
 		 * 
 		 * Application that let's the user easily install/uninstall custom maps for Phobia's game "Carrion".
@@ -17,7 +18,6 @@ namespace CarrionManagerConsole
 		 * TODO:
 		 * Selector for single column (e.g. options) and two columns (e.g. install/uninstall window).
 		 * - Mandatory: Display key/values. Return selected key.
-		 * - Optional: Show commands in the lowest row(s) and update them according to which column is selected.
 		 * - Optional: Folders that can be collapsed/expanded.
 		 * - Optional: Checkbox for boolean variables
 		 * 
@@ -49,12 +49,16 @@ namespace CarrionManagerConsole
 		 * 
 		 * Arrow Keys/PgUp/PgDown: Navigate    Enter/Space: Confirm    Esc: Quit
 		 * */
+		public const int
+			MinConsoleWidth = 120,
+			MinConsoleHeight = 13;
+
 		#region Files and Paths
 		public const string
 			LevelFolderName = "Levels", LevelFileExtension = ".json",
 			ScriptFolderName = "Scripts", ScriptFileExtension = ".cgs",
 			ContentFolderName = "Content",
-			saveFolderName = "Saves", SaveFileExtension = ".crn",
+			SaveFolderName = "Saves", SaveFileExtension = ".crn",
 			BackupFolderName = "Backups",
 			SavesBackupsFolderName = "Saves", SaveInfoFileName = "SaveInfo.txt";
 		public const string
@@ -64,7 +68,7 @@ namespace CarrionManagerConsole
 			ConfigFileName = "config.txt",
 			InstalledMapsFileName = "installed.txt";
 		public const string
-			LaunchGameArgument = "-applaunch 953490",
+			LaunchSteamGameArgument = "-applaunch 953490",
 			CustomLevelArgument = " -level {0}";
 		public const int MaxSubfolderIterations = 10; // The maximum number of nested subfolders this program will look through to find a custom map.
 
@@ -89,6 +93,8 @@ namespace CarrionManagerConsole
 		public static List<LoadableMap> availableMaps;
 		public static List<Map> installedMaps;
 		public static bool quit;
+		public static bool manageSaves;
+		public static Properties.GameLaunchMethod gameLaunchMethod;
 
 		public static readonly GUI.Label controlsLabel;
 		// Windows
@@ -106,6 +112,12 @@ namespace CarrionManagerConsole
 		private static void Init() {
 			try {
 				Console.WriteLine("Initializing...");
+				if (Console.WindowWidth <= MinConsoleWidth) {
+					Console.WindowWidth = MinConsoleWidth;
+				}
+				if (Console.WindowHeight <= MinConsoleHeight) {
+					Console.WindowHeight = MinConsoleHeight;
+				}
 				InitFields();
 				LoadDefaultSettings();
 				LoadSettings();
@@ -113,9 +125,10 @@ namespace CarrionManagerConsole
 				LoadAvailableMaps();
 				InitWindows();
 				Console.Clear();
-			}
-			catch (Exception e) {
-				Console.WriteLine("Initialization failed! Error message:");
+			} catch (Exception e) {
+				Console.BackgroundColor = MenuColor.ErrorBG;
+				Console.ForegroundColor = MenuColor.ErrorFG;
+				Console.WriteLine("\nInitialization failed! Error message:");
 				Console.WriteLine(e.Message);
 				Console.WriteLine("\nPress any key to exit...");
 				Console.ReadKey();
@@ -148,6 +161,9 @@ namespace CarrionManagerConsole
 		}
 
 		private static void InitWindows() {
+			if (Console.WindowWidth < Text.DefaultControls.Length) {
+				controlsLabel.Text = Text.DefaultControlsShort;
+			}
 			windowNames = new string[] {
 				Text.LauncherWindowTitle,
 				Text.MapInstallerWindowTitle,
@@ -175,10 +191,12 @@ namespace CarrionManagerConsole
 		}
 
 		private static void LoadDefaultSettings() {
-			steamPath = @"C:\Program Files(x86)\Steam\steam.exe";
-			gameRootPath = @"C:\Program Files(x86)\Steam\steamapps\common\Carrion";
+			gameLaunchMethod = Properties.GameLaunchMethod.Steam;
+			steamPath = @"C:\Program Files (x86)\Steam\steam.exe";
+			gameRootPath = @"C:\Program Files (x86)\Steam\SteamApps\common\Carrion";
 			customMapsPath = @"C:\Games\Modding\Carrion\Custom Maps";
 			appDataPath = @"C:\Users\your_username\AppData\LocalLow\Phobia\Carrion\_steam_xxxxxxxxxxxxxxxxx";
+			manageSaves = true;
 		}
 
 		private static void LoadInstalledMaps() {
@@ -186,7 +204,7 @@ namespace CarrionManagerConsole
 			// Check whether game root folder is valid
 			if (!Directory.Exists(gameContentPath)) {
 				Console.WriteLine("ERROR: Carrion Content path \"{0}\" is invalid.", gameContentPath);
-				Console.WriteLine(String.Format("Specify the correct path in \"{0}\".", ConfigFileName));
+				Console.WriteLine(string.Format("Specify the correct path in \"{0}\".", ConfigFileName));
 				Console.WriteLine("e.g.: GameContentPath = \"C:\\Program Files\\Steam\\steamapps\\common\\Carrion\\Content\"");
 				Console.WriteLine();
 				throw new Exception("Installed maps couldn't be loaded. See previous errors for details.");
@@ -194,8 +212,7 @@ namespace CarrionManagerConsole
 			if (File.Exists(installedMapsPath)) {
 				string installedMapsJson = File.ReadAllText(installedMapsPath);
 				installedMaps = JsonConvert.DeserializeObject<List<Map>>(installedMapsJson);
-			}
-			else {
+			} else {
 				installedMaps = new List<Map>();
 			}
 		}
@@ -210,10 +227,12 @@ namespace CarrionManagerConsole
 				Console.WriteLine("ERROR: Config file not found. New one with default settings was created:");
 				Console.WriteLine(configFilePath);
 				Console.WriteLine("\nOpen this file and adjust all settings:");
+				Console.WriteLine(Text.ConfigLaunchMethodDescription);
 				Console.WriteLine(Text.ConfigSteamPathDescription);
 				Console.WriteLine(Text.ConfigGamePathDescription);
 				Console.WriteLine(Text.ConfigCustomMapsPathDescription);
 				Console.WriteLine(Text.ConfigAppDataPathDescription);
+				Console.WriteLine(Text.ConfigManageSavesDescription);
 				Console.WriteLine();
 				LoadDefaultSettings();
 				SaveSettings();
@@ -223,37 +242,72 @@ namespace CarrionManagerConsole
 			var settings = ReadInfoFile(configFilePath);
 			List<string> missingSettings = new List<string>();
 
-			if (!settings.ContainsKey("SteamPath")) {
+			if (!settings.ContainsKey(Text.ConfigLaunchMethod)) {
+				missingSettings.Add(Text.ConfigLaunchMethodDescription);
+			} else if (settings[Text.ConfigLaunchMethod].ToLower() == Text.ConfigLaunchMethodDirectly) {
+				gameLaunchMethod = Properties.GameLaunchMethod.Directly;
+			} else if (settings[Text.ConfigLaunchMethod].ToLower() == Text.ConfigLaunchMethodSteam) {
+				gameLaunchMethod = Properties.GameLaunchMethod.Steam;
+			} else {
+				Console.WriteLine("Setting \"{0}\", value \"{1}\" is invalid! Allowed values:",
+					Text.ConfigLaunchMethod,
+					settings[Text.ConfigLaunchMethod].ToString());
+				Console.WriteLine(Text.ConfigLaunchMethodDirectly);
+				Console.WriteLine(Text.ConfigLaunchMethodSteam);
+				Console.WriteLine();
+				throw new Exception("Settings could not be loaded! See previous messages for details.");
+			}
+
+			if (gameLaunchMethod == Properties.GameLaunchMethod.Steam &&
+				!settings.ContainsKey(Text.ConfigSteamPath)) {
 				missingSettings.Add(Text.ConfigSteamPathDescription);
 			}
-			if (!settings.ContainsKey("GamePath")) {
+			if (!settings.ContainsKey(Text.ConfigGamePath)) {
 				missingSettings.Add(Text.ConfigGamePathDescription);
 			}
-			if (!settings.ContainsKey("CustomMapsPath")) {
+			if (!settings.ContainsKey(Text.ConfigCustomMapsPath)) {
 				missingSettings.Add(Text.ConfigCustomMapsPathDescription);
 			}
 			if (!settings.ContainsKey("AppDataPath")) {
 				missingSettings.Add(Text.ConfigAppDataPathDescription);
 			}
+			if (!settings.ContainsKey(Text.ConfigManageSaves)) {
+				missingSettings.Add(Text.ConfigManageSavesDescription);
+			}
 
 			if (missingSettings.Count > 0) {
 				Console.WriteLine("One or more settings are missing:");
-				foreach(var setting in missingSettings) {
+				foreach (var setting in missingSettings) {
 					Console.WriteLine(setting);
 				}
 				throw new Exception("Settings could not be loaded! See previous messages for details.");
 			}
 
-			steamPath = settings["SteamPath"];
-			gameRootPath = settings["GamePath"];
-			customMapsPath = settings["CustomMapsPath"];
+			if (gameLaunchMethod == Properties.GameLaunchMethod.Steam) {
+				steamPath = settings[Text.ConfigSteamPath];
+			}
+			gameRootPath = settings[Text.ConfigGamePath];
+			customMapsPath = settings[Text.ConfigCustomMapsPath];
 			appDataPath = settings["AppDataPath"];
+			if (settings[Text.ConfigManageSaves].ToLower() == Text.True) {
+				manageSaves = true;
+			} else if (settings[Text.ConfigManageSaves].ToLower() == Text.False) {
+				manageSaves = false;
+			} else {
+				Console.WriteLine("Setting \"{0}\", value \"{1}\" is invalid! Allowed values:",
+					Text.ConfigManageSaves,
+					settings[Text.ConfigManageSaves].ToString());
+				Console.WriteLine(Text.True);
+				Console.WriteLine(Text.False);
+				Console.WriteLine();
+				throw new Exception("Settings could not be loaded! See previous messages for details.");
+			}
 
 			gameExePath = Path.Combine(gameRootPath, GameExeName);
 			gameContentPath = Path.Combine(gameRootPath, ContentFolderName);
 			installedLevelsPath = Path.Combine(gameContentPath, LevelFolderName);
 			installedScriptsPath = Path.Combine(gameContentPath, ScriptFolderName);
-			saveFolderPath = Path.Combine(appDataPath, saveFolderName);
+			saveFolderPath = Path.Combine(appDataPath, SaveFolderName);
 			saveInfoFilePath = Path.Combine(Program.saveFolderPath, Program.SaveInfoFileName);
 			backupsPath = Path.Combine(thisPath, BackupFolderName);
 			saveBackupsPath = Path.Combine(backupsPath, SavesBackupsFolderName);
@@ -282,8 +336,7 @@ namespace CarrionManagerConsole
 			// Check if current directory is a map folder.
 			if (Directory.Exists(Path.Combine(folderPath, LevelFolderName))) {
 				ret.Add(new LoadableMap(folderPath));
-			}
-			else if (iteration < MaxSubfolderIterations) {
+			} else if (iteration < MaxSubfolderIterations) {
 				foreach (var directory in Directory.GetDirectories(folderPath)) {
 					var subMaps = ProcessCustomMapDirectory(directory, iteration + 1);
 					ret.AddRange(subMaps);
@@ -298,7 +351,7 @@ namespace CarrionManagerConsole
 			string fileText = File.ReadAllText(path);
 			fileText = fileText.Replace("\r", "");
 			Regex regex = new Regex(@"^(.+?)=[ ]*""?(.+?)""?$", RegexOptions.Multiline);
-			foreach(Match match in  regex.Matches(fileText)) {
+			foreach (Match match in regex.Matches(fileText)) {
 				ret.Add(match.Groups[1].Value, match.Groups[2].Value);
 			}
 			return ret;
@@ -318,18 +371,19 @@ namespace CarrionManagerConsole
 
 		public static void SaveSettings() {
 			var settings = new Dictionary<string, string> {
-				["SteamPath"] = steamPath,
-				["GamePath"] = gameRootPath,
-				["CustomMapsPath"] = customMapsPath,
-				["AppDataPath"] = appDataPath
+				[Text.ConfigSteamPath] = steamPath,
+				[Text.ConfigGamePath] = gameRootPath,
+				[Text.ConfigCustomMapsPath] = customMapsPath,
+				[Text.ConfigAppDataPath] = appDataPath,
+				[Text.ConfigManageSaves] = manageSaves ? Text.True : Text.False,
 			};
 			SaveInfoFile(configFilePath, settings);
 		}
 
 		public static void SaveInfoFile(string path, Dictionary<string, string> settings) {
 			string fileText = string.Empty;
-			foreach(var setting in settings) {
-				fileText += String.Format("{0}={1}\n", setting.Key, setting.Value);
+			foreach (var setting in settings) {
+				fileText += String.Format("{0}={1}{2}", setting.Key, setting.Value, Environment.NewLine);
 			}
 			File.WriteAllText(path, fileText);
 		}

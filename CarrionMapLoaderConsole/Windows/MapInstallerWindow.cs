@@ -25,7 +25,9 @@ namespace CarrionManagerConsole
 		public MapInstallerWindow() {
 			int width = Console.WindowWidth;
 			int height = Console.WindowHeight;
-			title = new GUI.Label(0, 0, width, 1, MenuColor.MajorHeaderBG, MenuColor.MajorHeaderFG, Text.MapInstallerWindowTitle);
+			title = new GUI.Label(0, 0, width, 1, MenuColor.MapInstallerWindowTitleBG, MenuColor.MapInstallerWindowTitleFG, Text.MapInstallerWindowTitle) {
+				HorizontalAlignment = Properties.HorizontalAlignment.Center
+			};
 			mapsMenu = new GUI.ListMenu(0, 1, width, height - 10, 2, MenuColor.ContentBG, MenuColor.ContentFG);
 			mapsMenu.SetColumnContent(0, Text.InstalledMaps, Program.MapListToStringArray(Program.installedMaps));
 			mapsMenu.SetColumnContent(1, Text.AvailableMaps, Program.MapListToStringArray(Program.availableMaps));
@@ -33,7 +35,6 @@ namespace CarrionManagerConsole
 			selectionPrompt = new GUI.SelectionPrompt(0, height - 8, width, 1, MenuColor.ContentBG, MenuColor.ContentFG);
 			commandTextSeparator = new GUI.Box(0, height - 7, width, 1, MenuColor.SeparatorBG, MenuColor.SeparatorFG);
 			textBox = new GUI.TextBox(0, height - 6, width, 4, MenuColor.ContentBG, MenuColor.ContentFG);
-
 		}
 
 		public void DrawAll() {
@@ -49,11 +50,11 @@ namespace CarrionManagerConsole
 
 		public void InstallMap(LoadableMap map, bool overwrite) {
 			if (FindInstalledMap(map.Name) != null) {
-				textBox.WriteLine(String.Format("ERROR: Map {0} is already installed!", map.Name));
+				textBox.WriteLine(string.Format("ERROR: Map {0} is already installed!", map.Name));
 				return;
 			}
 
-			textBox.WriteLine(String.Format("Installing map {0}...", map.Name));
+			textBox.WriteLine(string.Format("Installing map {0}...", map.Name));
 
 			string levelSourcePath = Path.Combine(map.MapPath, Program.LevelFolderName);
 			string scriptSourcePath = Path.Combine(map.MapPath, Program.ScriptFolderName);
@@ -114,13 +115,13 @@ namespace CarrionManagerConsole
 								UninstallMap(Program.installedMaps[selection.rowIndex]);
 								if (mapsMenu.CurrentList.IsEmpty) {
 									mapsMenu.SelectFirstItem();
-								}
-								else {
+								} else {
 									mapsMenu.CurrentList.Select(currentRow);
 								}
+							} else {
+								mapsMenu.CurrentList.Select(mapsMenu.CurrentList.selectedItemIndex);
 							}
-						}
-						else if (selection.columnIndex == 1) { // Available Maps -> Install/Reinstall
+						} else if (selection.columnIndex == 1) { // Available Maps -> Install/Reinstall
 							int response;
 							var selectedLoadableMap = Program.availableMaps[selection.rowIndex];
 							var alreadyInstalledMap = FindInstalledMap(selection.Text);
@@ -130,18 +131,15 @@ namespace CarrionManagerConsole
 								response = selectionPrompt.PromptSelection(new string[] { Text.Reinstall }, true);
 								if (response == 0) {
 									ReinstallMap(alreadyInstalledMap, selectedLoadableMap);
-								}
-								else {
+								} else {
 									textBox.Clear();
 								}
-							}
-							else if (VerifyNothingOverwritten(selectedLoadableMap)) {
+							} else if (VerifyNothingOverwritten(selectedLoadableMap)) {
 								textBox.Clear();
 								response = selectionPrompt.PromptSelection(new string[] { Text.Install }, true);
 								if (response == 0) {
 									InstallMap(Program.availableMaps[selection.rowIndex], false);
-								}
-								else {
+								} else {
 									textBox.Clear();
 								}
 							}
@@ -226,12 +224,10 @@ namespace CarrionManagerConsole
 				int response = selectionPrompt.PromptSelection(new string[] { Text.Overwrite }, options);
 				if (response == 0) {
 					InstallMap(map, true);
-				}
-				else textBox.Clear();
+				} else textBox.Clear();
 
 				return false;
-			}
-			else {
+			} else {
 				return true;
 			}
 		}

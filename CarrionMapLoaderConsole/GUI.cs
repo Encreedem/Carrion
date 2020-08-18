@@ -26,31 +26,28 @@ namespace CarrionManagerConsole
 			}
 		}
 
-		public static String FixedWidth(string s, int width, Properties.HorizontalAlignment horizontalAlignment) {
+		public static string FixedWidth(string s, int width, Properties.HorizontalAlignment horizontalAlignment) {
 			if (width <= 0) {
-				throw new Exception(String.Format("StringToFixedWidth: Parameter \"width\" has invalid value \"{0}\"!", width.ToString()));
+				throw new Exception(string.Format("StringToFixedWidth: Parameter \"width\" has invalid value \"{0}\"!", width.ToString()));
 			}
 			if (string.IsNullOrEmpty(s)) {
 				return new string(' ', width);
 			}
 			if (s.Length > width) {
 				return s.Substring(0, width);
-			}
-			else {
+			} else {
 				if (horizontalAlignment == Properties.HorizontalAlignment.Center) {
-					double half = width / 2;
-					return s.PadLeft((int)Math.Floor(half)).PadRight((int)Math.Ceiling(half));
-				}
-				else if (horizontalAlignment == Properties.HorizontalAlignment.Right) {
+					int padLeft = (width / 2) + (s.Length / 2);
+					return s.PadLeft(padLeft).PadRight(width);
+				} else if (horizontalAlignment == Properties.HorizontalAlignment.Right) {
 					return s.PadLeft(width);
-				}
-				else {
+				} else {
 					return s.PadRight(width);
 				}
 			}
 		}
 
-		public static String FixedWidth(string s, int width) {
+		public static string FixedWidth(string s, int width) {
 			return FixedWidth(s, width, Properties.HorizontalAlignment.Left);
 		}
 
@@ -105,9 +102,14 @@ namespace CarrionManagerConsole
 			public int selectedItemIndex;
 			public int scroll;
 
+			private ScrollBar scrollBar;
+
 			public ListBox(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground) : base(left, top, width, height, background, foreground) {
+				ForceShowScrollBar = true;
 				Init();
 			}
+
+			public bool ForceShowScrollBar { get; set; }
 
 			public event EventHandler<SelectionChangedEventArgs> SelectionChanged;
 
@@ -130,11 +132,9 @@ namespace CarrionManagerConsole
 			public int ClampRow(int row) {
 				if (row < 0) {
 					return 0;
-				}
-				else if (row >= items.Count - 1) {
+				} else if (row >= items.Count - 1) {
 					return items.Count - 1;
-				}
-				else {
+				} else {
 					return row;
 				}
 			}
@@ -150,6 +150,7 @@ namespace CarrionManagerConsole
 				foreach (var item in VisibleItems) {
 					item.Draw();
 				}
+				scrollBar.Draw();
 			}
 
 			public void Init() {
@@ -158,12 +159,19 @@ namespace CarrionManagerConsole
 				items = new List<SelectableText>();
 			}
 
+			public void InitScrollBar() {
+				scrollBar = new ScrollBar(Right, top, 1, height, MenuColor.ScrollBarBG, MenuColor.ScrollBarFG) {
+					MaxScroll = items.Count - height,
+					Scroll = scroll,
+					ForceShow = ForceShowScrollBar,
+				};
+			}
+
 			public void Navigate(int rows) {
 				int newRow = ClampRow(selectedItemIndex + rows);
 				if (selectedItemIndex == newRow) {
 					return;
-				}
-				else {
+				} else {
 					Select(newRow);
 				}
 
@@ -176,6 +184,10 @@ namespace CarrionManagerConsole
 
 			public void NavigateUp() {
 				Navigate(-1);
+			}
+
+			public virtual void OnSelectionChanged(SelectionChangedEventArgs e) {
+				SelectionChanged?.Invoke(this, e);
 			}
 
 			public void PageDown() {
@@ -214,24 +226,21 @@ namespace CarrionManagerConsole
 				}
 			}
 
-			public virtual void OnSelectionChanged(SelectionChangedEventArgs e) {
-				SelectionChanged?.Invoke(this, e);
-			}
-
 			public bool RowContainsItem(int row) {
 				return row >= 0 && row < this.items.Count;
 			}
 
-			public void Scroll(int offset) {
-				if (offset == 0) {
+			public void Scroll(int scrollCount) {
+				if (scrollCount == 0) {
 					return;
+				} else if (scroll + scrollCount < 0) {
+					scrollCount = scroll * -1;
+				} else if (scroll + scrollCount > items.Count) {
+					scrollCount = items.Count - (height + scroll);
 				}
-				else if (scroll + offset < 0) {
-					offset = scroll * -1;
-				}
-				else if (scroll + offset > items.Count) {
-					offset = items.Count - (height + scroll);
-				}
+				scroll += scrollCount;
+				scrollBar.Scroll = scroll;
+				int offset = -scrollCount;
 
 				foreach (var item in items) {
 					item.top += offset;
@@ -242,10 +251,9 @@ namespace CarrionManagerConsole
 
 			public void ScrollToSelectedItem() {
 				if (selectedItemIndex < scroll) {
-					Scroll((scroll - selectedItemIndex) * -1); // TODO: Test (-(
-				}
-				else if (selectedItemIndex > height + scroll) {
-					Scroll((selectedItemIndex - (height + scroll)));
+					Scroll(-(scroll - selectedItemIndex)); // TODO: Test (-(
+				} else if (selectedItemIndex + 1 > height + scroll) {
+					Scroll(selectedItemIndex + 1 - (height + scroll));
 				}
 			}
 
@@ -268,11 +276,13 @@ namespace CarrionManagerConsole
 
 			public void SetContent(string[] content) {
 				Init();
+				int textWidth = width - 1;
 				for (int i = 0; i < content.Length; ++i) {
-					var item = new SelectableText(left, top + i, width, content[i]);
+					var item = new SelectableText(left, top + i, textWidth, content[i]);
 					items.Add(item);
 					SetItemVisibility(item);
 				}
+				InitScrollBar();
 			}
 
 			public void SetItemVisibility(SelectableText item) {
@@ -281,18 +291,22 @@ namespace CarrionManagerConsole
 		}
 		public class Label : Box
 		{
-			public string text;
+			public Properties.HorizontalAlignment HorizontalAlignment { get; set; }
+			public string Text { get; set; }
+
 			public Label(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground, string text) : base(left, top, width, height, background, foreground) {
-				this.text = text;
+				Text = text;
+				HorizontalAlignment = Properties.HorizontalAlignment.Left;
 			}
 
 			public Label(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground) : base(left, top, width, height, background, foreground) {
-				this.text = String.Empty;
+				Text = string.Empty;
+				HorizontalAlignment = Properties.HorizontalAlignment.Left;
 			}
 
 			public void Draw() {
-				this.Clear();
-				GUI.Write(this.left, this.top, this.text, this.background, this.foreground);
+				string fixedText = FixedWidth(Text, width, HorizontalAlignment);
+				Write(left, top, fixedText, background, foreground);
 			}
 		}
 		public class ListMenu : Box
@@ -301,10 +315,14 @@ namespace CarrionManagerConsole
 			public readonly ListBox[] lists;
 			public int currentListIndex;
 
+			private bool forceShowScrollBar;
+
 			public ListMenu(int left, int top, int width, int height, int columnCount, ConsoleColor background, ConsoleColor foreground) : base(left, top, width, height, background, foreground) {
-				this.headers = new Label[columnCount];
-				this.lists = new ListBox[columnCount];
-				this.Init();
+				headers = new Label[columnCount];
+				lists = new ListBox[columnCount];
+				Init();
+				ForceShowScrollBar = true;
+
 			}
 
 			public ListBox CurrentList => IsListSelected ? lists[currentListIndex] : null;
@@ -320,6 +338,16 @@ namespace CarrionManagerConsole
 				}
 			}
 
+			public bool ForceShowScrollBar {
+				get { return forceShowScrollBar; }
+				set {
+					forceShowScrollBar = value;
+					foreach (var list in lists) {
+						if (list != null)
+							list.ForceShowScrollBar = value;
+					}
+				}
+			}
 			public bool IsListSelected => currentListIndex >= 0 && currentListIndex < lists.Length;
 
 			public void Draw() {
@@ -327,7 +355,7 @@ namespace CarrionManagerConsole
 					headers[i].Draw();
 					lists[i].Draw();
 				}
-				DrawSeparators();
+				//DrawSeparators();
 			}
 
 			public Selection PromptInput() {
@@ -378,23 +406,19 @@ namespace CarrionManagerConsole
 			}
 
 			public void SetColumnContent(int columnNumber, string header, string[] content) {
-				headers[columnNumber].text = header;
+				headers[columnNumber].Text = header;
 				lists[columnNumber].SetContent(content);
-			}
-
-			private void DrawSeparators() {
-				for (int i = 0; i < this.lists.Length - 1; ++i) {
-					DrawVerticalLine(this.lists[i].Right + 1, this.top + 1, this.height - 1, ' ', MenuColor.SeparatorBG, MenuColor.SeparatorFG);
-				}
 			}
 
 			private void Init() {
 				currentListIndex = 0;
-				int columnWidth = (width / lists.Length) - 1;
+				int columnWidth = (width / lists.Length);
 				int columnHeight = height - 1;
 				for (int columnNumber = 0; columnNumber < lists.Length; ++columnNumber) {
-					int columnLeft = left + ((columnWidth + 1) * columnNumber);
-					headers[columnNumber] = new Label(columnLeft, top, columnWidth + 1, 1, MenuColor.MinorHeaderBG, MenuColor.MinorHeaderFG);
+					int columnLeft = left + (columnWidth * columnNumber);
+					headers[columnNumber] = new Label(columnLeft, top, columnWidth, 1, MenuColor.MinorHeaderBG, MenuColor.MinorHeaderFG) {
+						HorizontalAlignment = Properties.HorizontalAlignment.Center
+					};
 					lists[columnNumber] = new ListBox(columnLeft, top + 1, columnWidth, columnHeight, background, foreground);
 				}
 			}
@@ -453,8 +477,6 @@ namespace CarrionManagerConsole
 			private int nextEmptyLine;
 			public TextBox(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground) : base(left, top, width, height, background, foreground) {
 				this.content = new string[this.height];
-				this.background = background;
-				this.foreground = foreground;
 				this.nextEmptyLine = 0;
 			}
 
@@ -485,8 +507,7 @@ namespace CarrionManagerConsole
 					}
 					this.content[^1] = text;
 					this.Draw();
-				}
-				else {
+				} else {
 					this.content[nextEmptyLine] = text;
 					GUI.Write(this.left, this.top + nextEmptyLine, FixedWidth(text, this.width), this.background, this.foreground);
 					nextEmptyLine++;
@@ -494,6 +515,69 @@ namespace CarrionManagerConsole
 						nextEmptyLine = -1; // No empty lines remain
 					}
 				}
+			}
+		}
+		public class ScrollBar : Box
+		{
+			private double maxScroll;
+			private double scroll;
+			private double scrollBarHeight;
+
+			public ScrollBar(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground) : base(left, top, width, height, background, foreground) {
+				Scroll = 0;
+				MaxScroll = 0;
+				ForceShow = false;
+			}
+
+			public bool ForceShow { get; set; }
+
+			public double MaxScroll {
+				get { return maxScroll; }
+				set {
+					maxScroll = Math.Max(0, value);
+					Init();
+				}
+			}
+			public double Scroll {
+				get { return scroll; }
+				set { scroll = Math.Clamp(value, 0, MaxScroll); }
+			}
+
+			public void Draw() {
+				if (MaxScroll == 0) {
+					if (ForceShow) {
+						DrawVerticalLine(left, top, height, ' ', background, background);
+					}
+					return;
+				}
+
+				double scrollBarTop = Math.Floor((Scroll / MaxScroll) * (height - scrollBarHeight + 1));
+				if (Scroll > 0 && MaxScroll > 0) { // When scrolled, put bar at least one away from top.
+					scrollBarTop = Math.Max(1, scrollBarTop);
+				}
+				if (scrollBarTop + scrollBarHeight >= height - 1) { // Only put scroll bar at bottom when scrolled all the way to bottom.
+					scrollBarTop--;
+				}
+
+				if (scrollBarTop > 0) {
+					DrawVerticalLine(left, top, (int)scrollBarTop, ' ', background, background);
+				}
+
+				DrawVerticalLine(left, top + (int)scrollBarTop, (int)scrollBarHeight, ' ', foreground, foreground);
+
+				if (Scroll < MaxScroll) {
+					DrawVerticalLine(
+						left,
+						top + (int)(scrollBarTop + scrollBarHeight),
+						(int)(height - (scrollBarTop + scrollBarHeight)),
+						' ',
+						background,
+						background);
+				}
+			}
+
+			public void Init() {
+				scrollBarHeight = Math.Floor(height / (height + MaxScroll) * height);
 			}
 		}
 		public class SelectableText : Box
@@ -564,13 +648,11 @@ namespace CarrionManagerConsole
 							Console.ForegroundColor = MenuColor.ContentFG;
 							break;
 					}
-				}
-				else {
+				} else {
 					if (selectionStatus == Properties.SelectionStatus.Selected || selectionStatus == Properties.SelectionStatus.Highlighted) {
 						Console.BackgroundColor = MenuColor.SelectedDisabledBG;
 						Console.ForegroundColor = MenuColor.SelectedDisabledFG;
-					}
-					else {
+					} else {
 						Console.BackgroundColor = MenuColor.DisabledBG;
 						Console.ForegroundColor = MenuColor.DisabledFG;
 					}
@@ -581,14 +663,11 @@ namespace CarrionManagerConsole
 				string fixedWidthText = FixedWidth(text, width - 2);
 				if (this.selectionStatus == Properties.SelectionStatus.None) {
 					return Text.UnselectedLeftSymbol + fixedWidthText + Text.UnselectedRightSymbol;
-				}
-				else if (this.selectionStatus == Properties.SelectionStatus.Selected) {
+				} else if (this.selectionStatus == Properties.SelectionStatus.Selected) {
 					return Text.SelectedLeftSymbol + fixedWidthText + Text.SelectedRightSymbol;
-				}
-				else if (this.selectionStatus == Properties.SelectionStatus.Highlighted) {
+				} else if (this.selectionStatus == Properties.SelectionStatus.Highlighted) {
 					return Text.HighlightedLeftSymbol + fixedWidthText + Text.HighlightedRightSymbol;
-				}
-				else {
+				} else {
 					throw new Exception(String.Format("Unsupported SelectionOption \"{0}\"", this.selectionStatus.ToString()));
 				}
 			}
@@ -631,6 +710,17 @@ namespace CarrionManagerConsole
 				}
 
 				int selected = options.index;
+				if (selected == -1) {
+					for (int i = 0; i < items.Count; ++i) {
+						if (items[i].enabled) {
+							selected = i;
+							break;
+						}
+					}
+					if (selected == -1) {
+						throw new Exception("Prompted selection without valid items!");
+					}
+				}
 				items[selected].selectionStatus = Properties.SelectionStatus.Selected;
 
 				bool finished = false;
@@ -696,12 +786,12 @@ namespace CarrionManagerConsole
 			{
 				public bool cancel; // Adds the "Cancel" option to the end of the list. Accepts Escape-key.
 				public int index;
-				public int[] disabledItems;
+				public List<int> disabledItems;
 
 				public Options() {
 					cancel = false;
-					index = 0;
-					disabledItems = new int[0];
+					index = -1;
+					disabledItems = new List<int>();
 				}
 			}
 		}

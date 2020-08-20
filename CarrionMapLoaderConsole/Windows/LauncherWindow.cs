@@ -143,7 +143,7 @@ namespace CarrionManagerConsole
 							case 1: // New Game
 								try {
 									if (Program.manageSaves) {
-										logTextBox.WriteLine(Text.BackUpCurrentSave);
+										logTextBox.WriteLine(Text.BackingUpCurrentSave);
 										Program.saveManagerWindow.BackupCurrentSave();
 										Program.saveManagerWindow.SetCurrentSave(mapName);
 									}

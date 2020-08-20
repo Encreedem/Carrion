@@ -31,6 +31,7 @@ namespace CarrionManagerConsole
 			mapsMenu = new GUI.ListMenu(0, 1, width, height - 10, 2, MenuColor.ContentBG, MenuColor.ContentFG);
 			mapsMenu.SetColumnContent(0, Text.InstalledMaps, Program.MapListToStringArray(Program.installedMaps));
 			mapsMenu.SetColumnContent(1, Text.AvailableMaps, Program.MapListToStringArray(Program.availableMaps));
+			mapsMenu.lists[1].SelectionChanged += AvailableMapSelectionChanged;
 			menuCommandSeparator = new GUI.Box(0, height - 9, width, 1, MenuColor.SeparatorBG, MenuColor.SeparatorFG);
 			selectionPrompt = new GUI.SelectionPrompt(0, height - 8, width, 1, MenuColor.ContentBG, MenuColor.ContentFG);
 			commandTextSeparator = new GUI.Box(0, height - 7, width, 1, MenuColor.SeparatorBG, MenuColor.SeparatorFG);
@@ -46,6 +47,21 @@ namespace CarrionManagerConsole
 			commandTextSeparator.Clear();
 			textBox.Draw();
 			Program.controlsLabel.Draw();
+		}
+
+		public void AvailableMapSelectionChanged(object sender, GUI.SelectionChangedEventArgs args) {
+			var selectedMap = Program.availableMaps[args.SelectedItemIndex];
+			if (!selectedMap.IsValid) {
+				textBox.Clear();
+				foreach (var issue in selectedMap.Issues) {
+					textBox.WriteLine(issue);
+				}
+			} else if (args.PreviousItemIndex >= 0 && args.PreviousItemIndex < Program.availableMaps.Count) {
+				var previousMap = Program.availableMaps[args.PreviousItemIndex];
+				if (!previousMap.IsValid) {
+					textBox.Clear();
+				}
+			}
 		}
 
 		public void InstallMap(LoadableMap map, bool overwrite) {

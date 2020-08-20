@@ -62,7 +62,8 @@ namespace CarrionManagerConsole
 			ScrollBarBG = ConsoleColor.DarkGray, ScrollBarFG = ConsoleColor.White,
 			NavigationWindowTitleBG = ConsoleColor.DarkBlue, NavigationWindowTitleFG = ConsoleColor.White,
 			LauncherWindowTitleBG = ConsoleColor.DarkGreen, LauncherWindowTitleFG = ConsoleColor.White,
-			MapInstallerWindowTitleBG = ConsoleColor.DarkCyan, MapInstallerWindowTitleFG = ConsoleColor.White;
+			MapInstallerWindowTitleBG = ConsoleColor.DarkCyan, MapInstallerWindowTitleFG = ConsoleColor.White,
+			SaveMangerWindowTitleBG = ConsoleColor.DarkYellow, SaveMangerWindowTitleFG = ConsoleColor.White;
 	}
 
 	public class Text
@@ -72,6 +73,8 @@ namespace CarrionManagerConsole
 			HighlightedLeftSymbol = "[", HighlightedRightSymbol = "]",
 			UnselectedLeftSymbol = " ", UnselectedRightSymbol = " ",
 
+			Enabled = "Enabled",
+			Disabled = "Disabled",
 			Cancel = "Cancel",
 			Install = "Install",
 			Uninstall = "Uninstall",
@@ -85,14 +88,28 @@ namespace CarrionManagerConsole
 			NewGame = "New Game",
 			MainGame = "Main Game",
 			Unknown = "Unknown",
+			LoadBackup = "Load Backup",
+			LoadedBackup = "Loaded backup \"{0}\".",
+			BackUpCurrentSave = "Backup current save",
+			ViewBackups = "View backups...",
+			ToggleAutoBackups = "Toggle Auto-Backups",
 			BackedUpMap = "Backed up map \"{0}\"",
 			PreparingSaveFile = "Preparing save files...",
-			BackUpCurrentSave = "Backing up current save files...",
+			BackingUpCurrentSave = "Backing up current save files...",
+			NoBackedUpSaves = "No backups of save files available.",
+
+			MapHasIssuesIndicator = "[!] ",
+			MapIssueNoLevelsFolder = "Map doesn't contain Levels folder!",
+			MapIssueNoScriptsFolder= "Map doesn't contain Scripts folder!",
 
 			NavigationWindowTitle = "Navigation Window",
 			LauncherWindowTitle = "Launcher",
 			MapInstallerWindowTitle = "Map Installer",
-			SaveManagerTitle = "Save File Manager",
+			SaveManagerWindowTitle = "Save File Manager",
+
+			SaveManagerWindowCurrentSave = "Current saved map:",
+			SaveManagerWindowBackupsCount = "Number of backups:",
+			SaveManagerWindowAutoBackupStatus = "Auto-backup & -load saves:",
 
 			SaveInfoMapName = "MapName",
 
@@ -107,12 +124,15 @@ namespace CarrionManagerConsole
 			ConfigCustomMapsPath = "CustomMapsPath",
 			ConfigAppDataPath = "AppDataPath",
 			ConfigManageSaves = "ManageSaves",
-			ConfigLaunchMethodDescription = "LaunchMethod:    If Carrion is installed via steam, enter \"Steam\", otherwise \"Directly\".",
+			ConfigLaunchMethodDescription = "LaunchMethod:   If Carrion is installed via steam, enter \"Steam\", otherwise \"Directly\".",
 			ConfigSteamPathDescription = "SteamPath:      The full path to steam.exe",
 			ConfigGamePathDescription = "GamePath:       The full path to the folder containing carrion.exe (i.e. where Carrion is installed)",
 			ConfigCustomMapsPathDescription = "CustomMapsPath: The full path to the folder containing all your extracted custom maps",
 			ConfigAppDataPathDescription = "AppDataPath:    The full path to the folder containing Carrion's saves folder and settings.json",
 			ConfigManageSavesDescription = "ManageSaves:    Whether saves should automatically be backed up and loaded when you launch a map.",
+
+			DisabledManageSaves = "Disabled Auto-backup & -loading of save files.",
+			EnabledManageSaves = "Enabled Auto-backup & -loading of save files.",
 
 			DefaultControls = "Arrow Keys/PgUp/PgDown: Navigate    Enter/Space: Confirm    Escape: Back/Cancel    1-9: Switch Window",
 			DefaultControlsShort = "Arrow Keys: Navigate   Enter: Confirm   Escape: Back/Cancel   1-9: Switch Window";

@@ -153,6 +153,10 @@ namespace CarrionManagerConsole
 				scrollBar.Draw();
 			}
 
+			public void HighlightCurrentItem() {
+				items[selectedItemIndex].Highlight();
+			}
+
 			public void Init() {
 				selectedItemIndex = 0;
 				scroll = 0;
@@ -186,7 +190,7 @@ namespace CarrionManagerConsole
 				Navigate(-1);
 			}
 
-			public virtual void OnSelectionChanged(SelectionChangedEventArgs e) {
+			public virtual void HandleSelectionChanged(SelectionChangedEventArgs e) {
 				SelectionChanged?.Invoke(this, e);
 			}
 
@@ -261,6 +265,7 @@ namespace CarrionManagerConsole
 				if (IsEmpty) {
 					return;
 				}
+				var previousItemIndex = selectedItemIndex;
 				var previousItem = SelectedItem;
 				Deselect();
 				selectedItemIndex = ClampRow(row);
@@ -268,10 +273,15 @@ namespace CarrionManagerConsole
 
 				var args = new SelectionChangedEventArgs() {
 					PreviousItem = previousItem,
+					PreviousItemIndex = previousItemIndex,
 					SelectedItem = SelectedItem,
 					SelectedItemIndex = selectedItemIndex,
 				};
-				OnSelectionChanged(args);
+				HandleSelectionChanged(args);
+			}
+
+			public void SelectCurrentItem() {
+				Select(selectedItemIndex);
 			}
 
 			public void SetContent(string[] content) {
@@ -515,6 +525,10 @@ namespace CarrionManagerConsole
 						nextEmptyLine = -1; // No empty lines remain
 					}
 				}
+			}
+
+			public void WriteLine() {
+				WriteLine(string.Empty);
 			}
 		}
 		public class ScrollBar : Box
@@ -800,6 +814,7 @@ namespace CarrionManagerConsole
 		public class SelectionChangedEventArgs : EventArgs
 		{
 			public int SelectedItemIndex { get; set; }
+			public int PreviousItemIndex { get; set; }
 			public SelectableText SelectedItem { get; set; }
 			public SelectableText PreviousItem { get; set; }
 		}

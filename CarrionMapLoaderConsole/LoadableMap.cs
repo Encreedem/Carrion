@@ -19,32 +19,34 @@ namespace CarrionManagerConsole
 
 		// Get map info from folder
 		public LoadableMap(string folderPath) : base() {
-			this.Issues = new List<string>();
-			this.MapPath = folderPath;
+			Issues = new List<string>();
+			MapPath = folderPath;
 
 			var directoryInfo = new DirectoryInfo(folderPath);
-			this.Name = directoryInfo.Name;
+			Name = directoryInfo.Name;
 
 			string levelFolderPath = Path.Combine(folderPath, Program.LevelFolderName);
 			if (Directory.Exists(levelFolderPath)) {
 				string[] levelPaths = Directory.GetFiles(levelFolderPath);
-				this.Levels = new string[levelPaths.Length];
+				Levels = new string[levelPaths.Length];
 				for (int i = 0; i < levelPaths.Length; ++i) {
-					this.Levels[i] = Path.GetFileName(levelPaths[i]);
+					Levels[i] = Path.GetFileName(levelPaths[i]);
 				}
 			} else {
-				this.Issues.Add("Map doesn't contain Levels folder.");
+				Levels = new string[0];
+				Issues.Add(Text.MapIssueNoLevelsFolder);
 			}
 
 			string scriptFolderPath = Path.Combine(folderPath, Program.ScriptFolderName);
 			if (Directory.Exists(scriptFolderPath)) {
 				string[] scriptPaths = Directory.GetFiles(scriptFolderPath);
-				this.Scripts = new string[scriptPaths.Length];
+				Scripts = new string[scriptPaths.Length];
 				for (int i = 0; i < scriptPaths.Length; ++i) {
-					this.Scripts[i] = Path.GetFileName(scriptPaths[i]);
+					Scripts[i] = Path.GetFileName(scriptPaths[i]);
 				}
 			} else {
-				this.Issues.Add("Map doesn't contain Scripts folder.");
+				Scripts = new string[0];
+				Issues.Add(Text.MapIssueNoScriptsFolder);
 			}
 			
 			VerifyMap();
@@ -52,36 +54,39 @@ namespace CarrionManagerConsole
 
 		public bool IsValid {
 			get {
-				return (this.Issues == null || this.Issues.Count == 0);
+				return (Issues == null || Issues.Count == 0);
 			}
 		}
 
 		// Returns the map's path relative to the path passed as the argument.
 		public string GetRelativePath(string rootPath) {
-			if (this.MapPath.StartsWith(rootPath)) {
-				string relativePath = this.MapPath.Substring(rootPath.Length);
+			if (MapPath.StartsWith(rootPath)) {
+				string relativePath = MapPath.Substring(rootPath.Length);
 				return relativePath;
 			}
 			else {
-				return this.MapPath;
+				return MapPath;
 			}
 		}
 
 		// Checks whether there are any issues with the map and stores any in its Issues list.
 		public void VerifyMap() {
-			// Check whether script files are missing.
-			foreach (string level in this.Levels) {
-				string baseName = level.Substring(0, level.Length - Program.LevelFileExtension.Length);
-				string correspondingScriptName = baseName + Program.ScriptFileExtension;
-				if (!this.Scripts.Contains(correspondingScriptName)) {
-					this.Issues.Add(String.Format("Map contains level {0} but not corresponding script {1}", level, correspondingScriptName));
+			if (Levels != null && Scripts != null) {
+				// Check whether script files are missing.
+				foreach (string level in Levels) {
+					string baseName = level.Substring(0, level.Length - Program.LevelFileExtension.Length);
+					string correspondingScriptName = baseName + Program.ScriptFileExtension;
+					if (!Scripts.Contains(correspondingScriptName)) {
+						Issues.Add(string.Format("Map contains level {0} but not corresponding script {1}", level, correspondingScriptName));
+					}
 				}
-			}
-			foreach (string script in this.Scripts) {
-				string baseName = script.Substring(0, script.Length - Program.ScriptFileExtension.Length);
-				string correspondingLevelName = baseName + Program.LevelFileExtension;
-				if (!this.Levels.Contains(correspondingLevelName)) {
-					this.Issues.Add(String.Format("Map contains script {0} but not corresponding level {1}", script, correspondingLevelName));
+				// Check whether level files are missing.
+				foreach (string script in Scripts) {
+					string baseName = script.Substring(0, script.Length - Program.ScriptFileExtension.Length);
+					string correspondingLevelName = baseName + Program.LevelFileExtension;
+					if (!Levels.Contains(correspondingLevelName)) {
+						Issues.Add(string.Format("Map contains script {0} but not corresponding level {1}", script, correspondingLevelName));
+					}
 				}
 			}
 		}

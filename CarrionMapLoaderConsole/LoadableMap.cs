@@ -8,18 +8,27 @@ namespace CarrionManagerConsole
 {
 	class LoadableMap : Map
 	{
-		public string MapPath;
-		public List<string> Issues;
+		public string MapPath { get; set; }
 
-		public LoadableMap(string name, string[] levels, string[] scripts, string path) : base(name, levels, scripts) {
-			this.Issues = new List<string>();
-			this.MapPath = path;
-			this.VerifyMap();
+		public LoadableMap(
+			string name,
+			string author,
+			string version,
+			string shortDescription,
+			string longDescription,
+			string[] levels,
+			string[] scripts,
+			string path) :
+			base(name, author, version, shortDescription, longDescription, levels, scripts) {
+			MapPath = path;
 		}
 
 		// Get map info from folder
 		public LoadableMap(string folderPath) : base() {
-			Issues = new List<string>();
+			LoadMap(folderPath);
+		}
+
+		public void LoadMap(string folderPath) {
 			MapPath = folderPath;
 
 			var directoryInfo = new DirectoryInfo(folderPath);
@@ -48,13 +57,38 @@ namespace CarrionManagerConsole
 				Scripts = new string[0];
 				Issues.Add(Text.MapIssueNoScriptsFolder);
 			}
-			
+
+			LoadMapInfo();
 			VerifyMap();
 		}
 
-		public bool IsValid {
-			get {
-				return (Issues == null || Issues.Count == 0);
+		public void LoadMapInfo() {
+			var mapInfoPath = Path.Combine(MapPath, Program.MapInfoFileName);
+			Author = null;
+			Version = null;
+			ShortDescription = null;
+			LongDescription = null;
+			StartupLevel = null;
+			if (File.Exists(mapInfoPath)) {
+				var mapInfo = Program.ReadInfoFile(mapInfoPath);
+				if (mapInfo.ContainsKey(Text.MapInfoFileMapName)) {
+					Name = mapInfo[Text.MapInfoFileMapName];
+				}
+				if (mapInfo.ContainsKey(Text.MapInfoFileAuthorName)) {
+					Author = mapInfo[Text.MapInfoFileAuthorName];
+				}
+				if (mapInfo.ContainsKey(Text.MapInfoFileVersion)) {
+					Version = mapInfo[Text.MapInfoFileVersion];
+				}
+				if (mapInfo.ContainsKey(Text.MapInfoFileShortDescription)) {
+					ShortDescription = mapInfo[Text.MapInfoFileShortDescription];
+				}
+				if (mapInfo.ContainsKey(Text.MapInfoFileLongDescription)) {
+					LongDescription = mapInfo[Text.MapInfoFileLongDescription];
+				}
+				if (mapInfo.ContainsKey(Text.MapInfoFileStartupLevel)) {
+					StartupLevel = mapInfo[Text.MapInfoFileStartupLevel];
+				}
 			}
 		}
 
@@ -63,31 +97,8 @@ namespace CarrionManagerConsole
 			if (MapPath.StartsWith(rootPath)) {
 				string relativePath = MapPath.Substring(rootPath.Length);
 				return relativePath;
-			}
-			else {
+			} else {
 				return MapPath;
-			}
-		}
-
-		// Checks whether there are any issues with the map and stores any in its Issues list.
-		public void VerifyMap() {
-			if (Levels != null && Scripts != null) {
-				// Check whether script files are missing.
-				foreach (string level in Levels) {
-					string baseName = level.Substring(0, level.Length - Program.LevelFileExtension.Length);
-					string correspondingScriptName = baseName + Program.ScriptFileExtension;
-					if (!Scripts.Contains(correspondingScriptName)) {
-						Issues.Add(string.Format("Map contains level {0} but not corresponding script {1}", level, correspondingScriptName));
-					}
-				}
-				// Check whether level files are missing.
-				foreach (string script in Scripts) {
-					string baseName = script.Substring(0, script.Length - Program.ScriptFileExtension.Length);
-					string correspondingLevelName = baseName + Program.LevelFileExtension;
-					if (!Levels.Contains(correspondingLevelName)) {
-						Issues.Add(string.Format("Map contains script {0} but not corresponding level {1}", script, correspondingLevelName));
-					}
-				}
 			}
 		}
 	}

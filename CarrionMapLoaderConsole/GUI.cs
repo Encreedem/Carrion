@@ -17,6 +17,17 @@ namespace CarrionManagerConsole
 			Console.Write(new string(c, width));
 		}
 
+		public static void DrawRectangle(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground) {
+			Console.BackgroundColor = background;
+			Console.ForegroundColor = foreground;
+			string s = new string(' ', width);
+
+			for (int i = 0; i < height; ++i) {
+				Console.SetCursorPosition(left, top + i);
+				Console.Write(s);
+			}
+		}
+
 		public static void DrawVerticalLine(int left, int top, int height, char c, ConsoleColor background, ConsoleColor foreground) {
 			Console.BackgroundColor = background;
 			Console.ForegroundColor = foreground;
@@ -58,6 +69,11 @@ namespace CarrionManagerConsole
 			Console.SetCursorPosition(0, 0);
 		}
 
+		public static void SetErrorColors() {
+			Console.BackgroundColor = MenuColor.ErrorBG;
+			Console.ForegroundColor = MenuColor.ErrorFG;
+		}
+
 		public static void Write(int left, int top, string text, ConsoleColor backgroundColor, ConsoleColor textColor) {
 			Console.SetCursorPosition(left, top);
 			Console.BackgroundColor = backgroundColor;
@@ -69,237 +85,287 @@ namespace CarrionManagerConsole
 			Write(left, top, text, MenuColor.ContentBG, MenuColor.ContentFG);
 		}
 
-		public class Box
+		public class Box : Drawable
 		{
-			public int left, top;
-			public int width, height;
-			public ConsoleColor background, foreground;
+			public Box(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground) :
+				base(left, top, width, height, background, foreground) {
 
-			public Box(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground) {
-				this.left = left;
-				this.top = top;
-				this.width = width;
-				this.height = height;
-				this.background = background;
-				this.foreground = foreground;
 			}
 
-			public int Right {
-				get {
-					return this.left + this.width - 1;
-				}
-			}
-
-			public void Clear() {
-				for (int i = 0; i < this.height; ++i) {
-					GUI.DrawHorizontalLine(this.left, this.top + i, this.width, ' ', this.background, this.foreground);
-				}
+			public override void Draw() {
+				Clear();
 			}
 		}
-		public class ListBox : Box
+		public class ColumnView : Navigable
 		{
-			public List<SelectableText> items;
-			public int selectedItemIndex;
-			public int scroll;
+			private int currentColumn;
+			private Box[] dimensions;
 
-			private ScrollBar scrollBar;
-
-			public ListBox(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground) : base(left, top, width, height, background, foreground) {
-				ForceShowScrollBar = true;
-				Init();
+			public ColumnView(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground, int columnCount) :
+				base(left, top, width, height, background, foreground) {
+				ColumnCount = columnCount;
+				Headers = new Label[columnCount];
+				Items = new IDrawable[columnCount];
+				Navigables = new INavigable[columnCount];
+				SelectableTextContainers = new SelectableTextContainer[columnCount];
+				currentColumn = -1;
+				InitDimensions();
 			}
 
-			public bool ForceShowScrollBar { get; set; }
-
-			public event EventHandler<SelectionChangedEventArgs> SelectionChanged;
-
-			public bool IsEmpty => this.items.Count == 0;
-			public int VisibleItemCount => (items.Count <= height) ? items.Count : height;
-			public List<SelectableText> VisibleItems {
+			public override bool CanNavigate {
 				get {
-					if (this.items.Count <= this.height) {
-						return this.items;
-					}
-					var visibleItems = new List<SelectableText>();
-					for (int i = scroll; i < height + scroll; ++i) {
-						visibleItems.Add(items[i]);
-					}
-					return visibleItems;
-				}
-			}
-			public SelectableText SelectedItem => RowContainsItem(selectedItemIndex) ? items[selectedItemIndex] : null;
-
-			public int ClampRow(int row) {
-				if (row < 0) {
-					return 0;
-				} else if (row >= items.Count - 1) {
-					return items.Count - 1;
-				} else {
-					return row;
-				}
-			}
-
-			public void Deselect() {
-				if (SelectedItem != null) {
-					SelectedItem.Deselect();
-				}
-				selectedItemIndex = -1;
-			}
-
-			public void Draw() {
-				foreach (var item in VisibleItems) {
-					item.Draw();
-				}
-				scrollBar.Draw();
-			}
-
-			public void HighlightCurrentItem() {
-				items[selectedItemIndex].Highlight();
-			}
-
-			public void Init() {
-				selectedItemIndex = 0;
-				scroll = 0;
-				items = new List<SelectableText>();
-			}
-
-			public void InitScrollBar() {
-				scrollBar = new ScrollBar(Right, top, 1, height, MenuColor.ScrollBarBG, MenuColor.ScrollBarFG) {
-					MaxScroll = items.Count - height,
-					Scroll = scroll,
-					ForceShow = ForceShowScrollBar,
-				};
-			}
-
-			public void Navigate(int rows) {
-				int newRow = ClampRow(selectedItemIndex + rows);
-				if (selectedItemIndex == newRow) {
-					return;
-				} else {
-					Select(newRow);
-				}
-
-				ScrollToSelectedItem();
-			}
-
-			public void NavigateDown() {
-				Navigate(1);
-			}
-
-			public void NavigateUp() {
-				Navigate(-1);
-			}
-
-			public virtual void HandleSelectionChanged(SelectionChangedEventArgs e) {
-				SelectionChanged?.Invoke(this, e);
-			}
-
-			public void PageDown() {
-				Navigate(height);
-			}
-
-			public void PageUp() {
-				Navigate(-height);
-			}
-
-			public Selection PromptInput() {
-				if (SelectedItem == null && !IsEmpty) {
-					items[0].Select();
-				}
-
-				while (true) {
-					var input = Console.ReadKey(true).Key;
-					if (Program.keybindings.ContainsKey(input)) {
-						switch (Program.keybindings[input]) {
-							case Properties.Command.NavigateUp:
-								NavigateUp();
-								break;
-							case Properties.Command.PageUp:
-								PageUp();
-								break;
-							case Properties.Command.NavigateDown:
-								NavigateDown();
-								break;
-							case Properties.Command.PageDown:
-								PageDown();
-								break;
-							default:
-								return new Selection(this, 0, selectedItemIndex, Program.keybindings[input]);
+					foreach (var item in Navigables) {
+						if (item != null && item.CanNavigate) {
+							return true;
 						}
 					}
+
+					return false;
+				}
+			}
+			public override bool CanNavigateDown => true;
+			public override bool CanNavigateLeft => true;
+			public override bool CanNavigateRight => true;
+			public override bool CanNavigateUp => true;
+			public int ColumnCount { get; private set; }
+			public override int CurrentColumn => currentColumn;
+			public bool CurrentColumnValid => CurrentColumn >= 0 && CurrentColumn < Items.Length;
+			public override int CurrentRow => SelectionValid() ? CurrentNavigable.CurrentRow : -1;
+			public INavigable CurrentNavigable => CurrentColumnValid ? Navigables[CurrentColumn] : null;
+			public SelectableTextContainer CurrentSelectableTextContainer => SelectionValid() ? SelectableTextContainers[CurrentColumn] : null;
+			public Label[] Headers { get; set; }
+			public override bool IsActive => SelectionValid();
+			public IDrawable[] Items { get; set; }
+			public INavigable[] Navigables { get; set; }
+			public SelectableTextContainer[] SelectableTextContainers { get; set; }
+
+			public ListBox AddListBox(int column, string title, bool forceShowScrollBar) {
+				SetHeader(column, title);
+
+				var dimension = dimensions[column];
+				ListBox listBox;
+				if (Headers[column] == null) {
+					listBox = new ListBox(
+						dimension.Left, dimension.Top,
+						dimension.Width, dimension.Height,
+						Background, Foreground,
+						forceShowScrollBar);
+				} else {
+					listBox = new ListBox(
+						dimension.Left, dimension.Top + 1,
+						dimension.Width, dimension.Height - 1,
+						Background, Foreground,
+						forceShowScrollBar);
+				}
+
+				AddNavigable(column, listBox);
+				SelectableTextContainers[column] = listBox;
+				return listBox;
+			}
+
+			public TextBox AddTextBox(int column, string title) {
+				SetHeader(column, title);
+
+				var dimension = dimensions[column];
+				TextBox textBox;
+				if (Headers[column] == null) {
+					textBox = new TextBox(
+						dimension.Left, dimension.Top,
+						dimension.Width, dimension.Height,
+						Background, Foreground);
+				} else {
+					textBox = new TextBox(
+						dimension.Left, dimension.Top + 1,
+						dimension.Width, dimension.Height - 1,
+						Background, Foreground);
+				}
+
+				Items[column] = textBox;
+				return textBox;
+			}
+
+			public void AddNavigable(int column, INavigable navigable) {
+				Items[column] = navigable;
+				Navigables[column] = navigable;
+			}
+
+			public override void Deactivate() {
+				var currentNavigable = CurrentNavigable;
+				if (currentNavigable != null) {
+					currentNavigable.Deactivate();
 				}
 			}
 
-			public bool RowContainsItem(int row) {
-				return row >= 0 && row < this.items.Count;
-			}
-
-			public void Scroll(int scrollCount) {
-				if (scrollCount == 0) {
-					return;
-				} else if (scroll + scrollCount < 0) {
-					scrollCount = scroll * -1;
-				} else if (scroll + scrollCount > items.Count) {
-					scrollCount = items.Count - (height + scroll);
-				}
-				scroll += scrollCount;
-				scrollBar.Scroll = scroll;
-				int offset = -scrollCount;
-
-				foreach (var item in items) {
-					item.top += offset;
-					SetItemVisibility(item);
-				}
-				Draw();
-			}
-
-			public void ScrollToSelectedItem() {
-				if (selectedItemIndex < scroll) {
-					Scroll(-(scroll - selectedItemIndex)); // TODO: Test (-(
-				} else if (selectedItemIndex + 1 > height + scroll) {
-					Scroll(selectedItemIndex + 1 - (height + scroll));
+			public override void Draw() {
+				for (int i = 0; i < Items.Length; ++i) {
+					if (Headers[i] != null) {
+						Headers[i].Draw();
+					}
+					Items[i].Draw();
 				}
 			}
 
-			public void Select(int row) {
-				if (IsEmpty) {
-					return;
+			public void InitDimensions() {
+				dimensions = new Box[ColumnCount];
+				int columnLeft = Left;
+				int columnWidth = Width / ColumnCount;
+				for (int i = 0; i < ColumnCount; ++i) {
+					dimensions[i] = new Box(columnLeft, Top, columnWidth, Height, Background, Foreground);
+					columnLeft += columnWidth;
 				}
-				var previousItemIndex = selectedItemIndex;
-				var previousItem = SelectedItem;
-				Deselect();
-				selectedItemIndex = ClampRow(row);
-				SelectedItem.Select();
-
-				var args = new SelectionChangedEventArgs() {
-					PreviousItem = previousItem,
-					PreviousItemIndex = previousItemIndex,
-					SelectedItem = SelectedItem,
-					SelectedItemIndex = selectedItemIndex,
-				};
-				HandleSelectionChanged(args);
 			}
 
-			public void SelectCurrentItem() {
-				Select(selectedItemIndex);
-			}
-
-			public void SetContent(string[] content) {
-				Init();
-				int textWidth = width - 1;
-				for (int i = 0; i < content.Length; ++i) {
-					var item = new SelectableText(left, top + i, textWidth, content[i]);
-					items.Add(item);
-					SetItemVisibility(item);
+			public override void NavigateDown() {
+				var currentNavigable = CurrentNavigable;
+				if (currentNavigable != null && currentNavigable.IsActive && currentNavigable.CanNavigateDown) {
+					currentNavigable.NavigateDown();
 				}
-				InitScrollBar();
 			}
 
-			public void SetItemVisibility(SelectableText item) {
-				item.visible = (item.top >= top && item.top < top + height);
+			public override void NavigateLeft() {
+				for (int c = CurrentColumn - 1; c >= 0; --c) {
+					if (Navigables[c] != null && Navigables[c].CanNavigate) {
+						int row = CurrentRow;
+						Deactivate();
+						currentColumn = c;
+						CurrentNavigable.NavigateToLastColumn(row);
+					}
+				}
+			}
+
+			public override void NavigateRight() {
+				for (int c = CurrentColumn + 1; c < Navigables.Length; ++c) {
+					if (Navigables[c] != null && Navigables[c].CanNavigate) {
+						int row = CurrentRow;
+						Deactivate();
+						currentColumn = c;
+						CurrentNavigable.NavigateToFirstColumn(row);
+					}
+				}
+			}
+
+			public override void NavigateToDefault() {
+				var currentNavigable = CurrentNavigable;
+				if (currentNavigable != null) {
+					currentNavigable.Deactivate();
+				}
+				for (int c = 0; c < Navigables.Length; ++c) {
+					if (Navigables[c] != null && Navigables[c].CanNavigate) {
+						currentColumn = c;
+						Navigables[c].NavigateToDefault();
+						return;
+					}
+				}
+
+				currentColumn = -1;
+			}
+
+			public override void NavigateToFirstColumn(int row) {
+				throw new NotImplementedException();
+			}
+
+			public override void NavigateToFirstRow(int column) {
+				throw new NotImplementedException();
+			}
+
+			public override void NavigateToLastColumn(int row) {
+				throw new NotImplementedException();
+			}
+
+			public override void NavigateToLastRow(int column) {
+				throw new NotImplementedException();
+			}
+
+			public override void NavigateUp() {
+				var currentNavigable = CurrentNavigable;
+				if (currentNavigable != null && currentNavigable.IsActive && currentNavigable.CanNavigateUp) {
+					currentNavigable.NavigateUp();
+				}
+			}
+
+			public override void PageDown() {
+				var currentNavigable = CurrentNavigable;
+				if (currentNavigable != null && currentNavigable.IsActive && currentNavigable.CanNavigateDown) {
+					currentNavigable.PageDown();
+				}
+			}
+
+			public override void PageUp() {
+				var currentNavigable = CurrentNavigable;
+				if (currentNavigable != null && currentNavigable.IsActive && currentNavigable.CanNavigateUp) {
+					currentNavigable.PageUp();
+				}
+			}
+
+			public Selection PromptSelection() {
+				while (true) {
+					var input = PromptInput();
+					var container = CurrentSelectableTextContainer;
+					if (input.Command != Properties.Command.Confirm || container != null) {
+						return new Selection(container, CurrentColumn, CurrentRow, input.Command);
+					}
+				}
+			}
+
+			public bool SelectionValid() {
+				return (
+					CurrentColumn >= 0 &&
+					CurrentColumn < Navigables.Length &&
+					Navigables[CurrentColumn] != null &&
+					Navigables[CurrentColumn].IsActive);
+			}
+			public void SetHeader(int column, string text) {
+				if (string.IsNullOrEmpty(text)) {
+					Headers[column] = null;
+				} else {
+					var dimension = dimensions[column];
+					Headers[column] = new Label(dimension.Left, dimension.Top, dimension.Width, 1, MenuColor.MinorHeaderBG, MenuColor.MinorHeaderFG, text) {
+						HorizontalAlignment = Properties.HorizontalAlignment.Center,
+					};
+				}
 			}
 		}
-		public class Label : Box
+		public abstract class Drawable : IDrawable
+		{
+			public Drawable(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground) {
+				Left = left;
+				Top = top;
+				Width = width;
+				Height = height;
+				Background = background;
+				Foreground = foreground;
+			}
+
+			public int Left { get; set; }
+			public int Top { get; set; }
+			public int Bottom => Top + Height - 1;
+			public int Right => Left + Width - 1;
+			public int Width { get; set; }
+			public int Height { get; set; }
+			public ConsoleColor Background { get; set; }
+			public ConsoleColor Foreground { get; set; }
+
+			public void Clear() {
+				DrawRectangle(Left, Top, Width, Height, Background, Foreground);
+			}
+
+			public abstract void Draw();
+		}
+		public class Input
+		{
+			public Input(INavigable list, int columnIndex, int rowIndex, Properties.Command command) {
+				List = list;
+				ColumnIndex = columnIndex;
+				RowIndex = rowIndex;
+				Command = command;
+			}
+
+			public int RowIndex { get; set; }
+			public int ColumnIndex { get; set; }
+			public Properties.Command Command { get; set; }
+			public INavigable List { get; set; }
+		}
+		public class Label : Drawable
 		{
 			public Properties.HorizontalAlignment HorizontalAlignment { get; set; }
 			public string Text { get; set; }
@@ -314,224 +380,214 @@ namespace CarrionManagerConsole
 				HorizontalAlignment = Properties.HorizontalAlignment.Left;
 			}
 
-			public void Draw() {
-				string fixedText = FixedWidth(Text, width, HorizontalAlignment);
-				Write(left, top, fixedText, background, foreground);
+			public override void Draw() {
+				string fixedText = FixedWidth(Text, Width, HorizontalAlignment);
+				Write(Left, Top, fixedText, Background, Foreground);
 			}
 		}
-		public class ListMenu : Box
+		public class ListBox : SelectableTextContainer
 		{
-			public readonly Label[] headers;
-			public readonly ListBox[] lists;
-			public int currentListIndex;
+			public int scroll;
+			private ScrollBar scrollBar;
 
-			private bool forceShowScrollBar;
-
-			public ListMenu(int left, int top, int width, int height, int columnCount, ConsoleColor background, ConsoleColor foreground) : base(left, top, width, height, background, foreground) {
-				headers = new Label[columnCount];
-				lists = new ListBox[columnCount];
+			public ListBox(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground, bool forceShowScrollBar) :
+				base(left, top, width, height, background, foreground, Properties.Alignment.Vertical) {
+				ForceShowScrollBar = forceShowScrollBar;
 				Init();
-				ForceShowScrollBar = true;
-
 			}
 
-			public ListBox CurrentList => IsListSelected ? lists[currentListIndex] : null;
-
-			public bool IsEmpty {
+			public bool ForceShowScrollBar { get; set; }
+			public int VisibleItemCount => (Items.Count <= Height) ? Items.Count : Height;
+			public List<SelectableText> VisibleItems {
 				get {
-					foreach (var list in lists) {
-						if (list.items.Count > 0) {
-							return false;
-						}
+					if (Items.Count <= Height) {
+						return Items;
 					}
-					return true;
-				}
-			}
-
-			public bool ForceShowScrollBar {
-				get { return forceShowScrollBar; }
-				set {
-					forceShowScrollBar = value;
-					foreach (var list in lists) {
-						if (list != null)
-							list.ForceShowScrollBar = value;
+					var visibleItems = new List<SelectableText>();
+					for (int i = scroll; i < Height + scroll; ++i) {
+						visibleItems.Add(Items[i]);
 					}
+					return visibleItems;
 				}
 			}
-			public bool IsListSelected => currentListIndex >= 0 && currentListIndex < lists.Length;
 
-			public void Draw() {
-				for (int i = 0; i < lists.Length; ++i) {
-					headers[i].Draw();
-					lists[i].Draw();
+			public override void Draw() {
+				foreach (var item in VisibleItems) {
+					item.Draw();
 				}
-				//DrawSeparators();
+				scrollBar.Draw();
 			}
 
-			public Selection PromptInput() {
-				if (!SelectionValid() && !IsEmpty) {
-					SelectFirstItem();
+			public void Init() {
+				scroll = 0;
+			}
+
+			public void InitScrollBar() {
+				scrollBar = new ScrollBar(Right, Top, 1, Height, MenuColor.ScrollBarBG, MenuColor.ScrollBarFG) {
+					MaxScroll = Items.Count - Height,
+					Scroll = scroll,
+					ForceShow = ForceShowScrollBar,
+				};
+			}
+
+			public override void Navigate(int offset) {
+				int newRow = ClampIndex(SelectedItemIndex + offset);
+				if (newRow == SelectedItemIndex) {
+					return;
+				} else {
+					Select(newRow);
+				}
+
+				ScrollToSelectedItem();
+			}
+
+			public void Scroll(int scrollCount) {
+				if (scrollCount == 0) {
+					return;
+				} else if (scroll + scrollCount < 0) {
+					scrollCount = scroll * -1;
+				} else if (scroll + scrollCount > Items.Count) {
+					scrollCount = Items.Count - (Height + scroll);
+				}
+				scroll += scrollCount;
+				scrollBar.Scroll = scroll;
+				int offset = -scrollCount;
+
+				foreach (var item in Items) {
+					item.Top += offset;
+					SetItemVisibility(item);
+				}
+				Draw();
+			}
+
+			public void ScrollToSelectedItem() {
+				if (SelectedItemIndex < scroll) {
+					Scroll(-(scroll - SelectedItemIndex));
+				} else if (SelectedItemIndex + 1 > Height + scroll) {
+					Scroll(SelectedItemIndex + 1 - (Height + scroll));
+				}
+			}
+
+			public void SelectCurrentItem() {
+				Select(SelectedItemIndex);
+			}
+
+			public void SetContent(string[] content) {
+				InitItems();
+				Init();
+				int textWidth = Width - 1;
+				for (int i = 0; i < content.Length; ++i) {
+					var item = new SelectableText(Left, Top + i, textWidth, content[i]);
+					Items.Add(item);
+					SetItemVisibility(item);
+				}
+				InitScrollBar();
+			}
+
+			public void SetItemVisibility(SelectableText item) {
+				item.Visible = (item.Top >= Top && item.Top < Top + Height);
+			}
+		}
+		public abstract class Navigable : INavigable
+		{
+			public Navigable(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground) {
+				Left = left;
+				Top = top;
+				Width = width;
+				Height = height;
+				Background = background;
+				Foreground = foreground;
+			}
+
+			#region IBox
+			public int Left { get; set; }
+			public int Top { get; set; }
+			public int Width { get; set; }
+			public int Height { get; set; }
+			public ConsoleColor Background { get; set; }
+			public ConsoleColor Foreground { get; set; }
+			public int Bottom => Top + Height - 1;
+			public int Right => Left + Width - 1;
+
+			public void Clear() {
+				DrawRectangle(Left, Top, Width, Height, Background, Foreground);
+			}
+			#endregion
+
+			#region INavigable
+			public abstract bool CanNavigate { get; }
+			public abstract bool CanNavigateDown { get; }
+			public abstract bool CanNavigateLeft { get; }
+			public abstract bool CanNavigateRight { get; }
+			public abstract bool CanNavigateUp { get; }
+			public abstract int CurrentColumn { get; }
+			public abstract int CurrentRow { get; }
+			public abstract bool IsActive { get; }
+
+			public abstract void Deactivate();
+			public abstract void Draw();
+			public abstract void NavigateDown();
+			public abstract void NavigateLeft();
+			public abstract void NavigateRight();
+			public abstract void NavigateToDefault();
+			public abstract void NavigateToFirstColumn(int row);
+			public abstract void NavigateToFirstRow(int column);
+			public abstract void NavigateToLastColumn(int row);
+			public abstract void NavigateToLastRow(int column);
+			public abstract void NavigateUp();
+			public abstract void PageDown();
+			public abstract void PageUp();
+			public Input PromptInput() {
+				if (!IsActive) {
+					NavigateToDefault();
 				}
 
 				while (true) {
 					var input = Console.ReadKey(true).Key;
-					if (Program.keybindings.ContainsKey(input)) {
-						switch (Program.keybindings[input]) {
-							case Properties.Command.NavigateUp:
-								if (IsListSelected) {
-									CurrentList.NavigateUp();
-								}
-								break;
-							case Properties.Command.PageUp:
-								if (IsListSelected) {
-									CurrentList.PageUp();
-								}
-								break;
-							case Properties.Command.NavigateDown:
-								if (IsListSelected) {
-									CurrentList.NavigateDown();
-								}
-								break;
-							case Properties.Command.PageDown:
-								if (IsListSelected) {
-									CurrentList.PageDown();
-								}
-								break;
-							case Properties.Command.NavigateLeft:
-								if (IsListSelected) {
-									NavigateLeft();
-								}
-								break;
-							case Properties.Command.NavigateRight:
-								if (IsListSelected) {
-									NavigateRight();
-								}
-								break;
-							default:
-								int selectedItemIndex = IsListSelected ? CurrentList.selectedItemIndex : -1;
-								return new Selection(CurrentList, currentListIndex, selectedItemIndex, Program.keybindings[input]);
-						}
+					if (!Program.keybindings.ContainsKey(input)) {
+						continue;
+					}
+
+					Properties.Command command = Program.keybindings[input];
+					switch (command) {
+						case Properties.Command.NavigateUp:
+							if (CanNavigateUp) {
+								NavigateUp();
+							}
+							break;
+						case Properties.Command.PageUp:
+							if (CanNavigateUp) {
+								PageUp();
+							}
+							break;
+						case Properties.Command.NavigateDown:
+							if (CanNavigateDown) {
+								NavigateDown();
+							}
+							break;
+						case Properties.Command.PageDown:
+							if (CanNavigateDown) {
+								PageDown();
+							}
+							break;
+						case Properties.Command.NavigateLeft:
+							if (CanNavigateLeft) {
+								NavigateLeft();
+							}
+							break;
+						case Properties.Command.NavigateRight:
+							if (CanNavigateRight) {
+								NavigateRight();
+							}
+							break;
+						default:
+							return new Input(this, CurrentColumn, CurrentRow, command);
 					}
 				}
 			}
-
-			public void SetColumnContent(int columnNumber, string header, string[] content) {
-				headers[columnNumber].Text = header;
-				lists[columnNumber].SetContent(content);
-			}
-
-			private void Init() {
-				currentListIndex = 0;
-				int columnWidth = (width / lists.Length);
-				int columnHeight = height - 1;
-				for (int columnNumber = 0; columnNumber < lists.Length; ++columnNumber) {
-					int columnLeft = left + (columnWidth * columnNumber);
-					headers[columnNumber] = new Label(columnLeft, top, columnWidth, 1, MenuColor.MinorHeaderBG, MenuColor.MinorHeaderFG) {
-						HorizontalAlignment = Properties.HorizontalAlignment.Center
-					};
-					lists[columnNumber] = new ListBox(columnLeft, top + 1, columnWidth, columnHeight, background, foreground);
-				}
-			}
-
-			private void NavigateLeft() {
-				if (currentListIndex > 0) {
-					for (int c = currentListIndex - 1; c >= 0; --c) {
-						if (!lists[c].IsEmpty) {
-							CurrentList.Deselect();
-							currentListIndex = c;
-							int currentRow = CurrentList.selectedItemIndex;
-							CurrentList.Select(currentRow);
-						}
-					}
-				}
-			}
-
-			private void NavigateRight() {
-				if (currentListIndex < this.lists.Length - 1) {
-					for (int c = currentListIndex + 1; c < this.lists.Length; ++c) {
-						if (!lists[c].IsEmpty) {
-							CurrentList.Deselect();
-							currentListIndex = c;
-							int currentRow = CurrentList.selectedItemIndex;
-							CurrentList.Select(currentRow);
-						}
-					}
-				}
-			}
-
-			public bool SelectFirstItem() {
-				if (CurrentList != null) {
-					CurrentList.Deselect();
-				}
-				for (int c = 0; c < lists.Length; ++c) {
-					if (!lists[c].IsEmpty) {
-						currentListIndex = c;
-						CurrentList.Select(0);
-						return true;
-					}
-				}
-
-				currentListIndex = -1;
-				return false;
-			}
-
-			private bool SelectionValid() {
-				return !((currentListIndex < 0 || currentListIndex >= this.lists.Length) ||
-					(!CurrentList.RowContainsItem(CurrentList.selectedItemIndex)));
-			}
+			#endregion
 		}
-		public class TextBox : Box
-		{
-			public string[] content;
-
-			private int nextEmptyLine;
-			public TextBox(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground) : base(left, top, width, height, background, foreground) {
-				this.content = new string[this.height];
-				this.nextEmptyLine = 0;
-			}
-
-			public void AppendLastLine(string text) {
-				int lastWrittenLine = nextEmptyLine == -1 ? this.height - 1 : nextEmptyLine - 1;
-				this.content[lastWrittenLine] += text;
-				GUI.Write(this.left, this.top + lastWrittenLine, FixedWidth(this.content[lastWrittenLine], this.width));
-			}
-
-			public new void Clear() {
-				for (int i = 0; i < this.content.Length; ++i) {
-					this.content[i] = String.Empty;
-				}
-				this.nextEmptyLine = 0;
-				this.Draw();
-			}
-
-			public void Draw() {
-				for (int i = 0; i < this.content.Length; ++i) {
-					GUI.Write(this.left, this.top + i, FixedWidth(this.content[i], this.width), this.background, this.foreground);
-				}
-			}
-
-			public void WriteLine(string text) {
-				if (nextEmptyLine == -1) {
-					for (int i = 0; i < this.content.Length - 1; ++i) {
-						this.content[i] = this.content[i + 1];
-					}
-					this.content[^1] = text;
-					this.Draw();
-				} else {
-					this.content[nextEmptyLine] = text;
-					GUI.Write(this.left, this.top + nextEmptyLine, FixedWidth(text, this.width), this.background, this.foreground);
-					nextEmptyLine++;
-					if (nextEmptyLine >= this.height) {
-						nextEmptyLine = -1; // No empty lines remain
-					}
-				}
-			}
-
-			public void WriteLine() {
-				WriteLine(string.Empty);
-			}
-		}
-		public class ScrollBar : Box
+		public class ScrollBar : Drawable
 		{
 			private double maxScroll;
 			private double scroll;
@@ -557,94 +613,94 @@ namespace CarrionManagerConsole
 				set { scroll = Math.Clamp(value, 0, MaxScroll); }
 			}
 
-			public void Draw() {
+			public override void Draw() {
 				if (MaxScroll == 0) {
 					if (ForceShow) {
-						DrawVerticalLine(left, top, height, ' ', background, background);
+						DrawVerticalLine(Left, Top, Height, ' ', Background, Background);
 					}
 					return;
 				}
 
-				double scrollBarTop = Math.Floor((Scroll / MaxScroll) * (height - scrollBarHeight + 1));
+				double scrollBarTop = Math.Floor((Scroll / MaxScroll) * (Height - scrollBarHeight + 1));
 				if (Scroll > 0 && MaxScroll > 0) { // When scrolled, put bar at least one away from top.
 					scrollBarTop = Math.Max(1, scrollBarTop);
 				}
-				if (scrollBarTop + scrollBarHeight >= height - 1) { // Only put scroll bar at bottom when scrolled all the way to bottom.
+				if (scrollBarTop + scrollBarHeight >= Height - 1) { // Only put scroll bar at bottom when scrolled all the way to bottom.
 					scrollBarTop--;
 				}
 
 				if (scrollBarTop > 0) {
-					DrawVerticalLine(left, top, (int)scrollBarTop, ' ', background, background);
+					DrawVerticalLine(Left, Top, (int)scrollBarTop, ' ', Background, Background);
 				}
 
-				DrawVerticalLine(left, top + (int)scrollBarTop, (int)scrollBarHeight, ' ', foreground, foreground);
+				DrawVerticalLine(Left, Top + (int)scrollBarTop, (int)scrollBarHeight, ' ', Foreground, Foreground);
 
 				if (Scroll < MaxScroll) {
 					DrawVerticalLine(
-						left,
-						top + (int)(scrollBarTop + scrollBarHeight),
-						(int)(height - (scrollBarTop + scrollBarHeight)),
+						Left,
+						Top + (int)(scrollBarTop + scrollBarHeight),
+						(int)(Height - (scrollBarTop + scrollBarHeight)),
 						' ',
-						background,
-						background);
+						Background,
+						Background);
 				}
 			}
 
 			public void Init() {
-				scrollBarHeight = Math.Floor(height / (height + MaxScroll) * height);
+				scrollBarHeight = Math.Floor(Height / (Height + MaxScroll) * Height);
 			}
 		}
-		public class SelectableText : Box
+		public class SelectableText : Drawable
 		{
-			public bool enabled;
-			public Properties.SelectionStatus selectionStatus;
-			public string text;
-			public bool visible;
-
 			public SelectableText(int left, int top, int width, string text) : base(left, top, width, 1, MenuColor.ContentBG, MenuColor.ContentFG) {
-				this.left = left;
-				this.top = top;
-				this.text = text;
-				this.enabled = true;
-				this.visible = true;
-				this.selectionStatus = Properties.SelectionStatus.None;
+				Left = left;
+				Top = top;
+				Text = text;
+				Enabled = true;
+				Visible = true;
+				SelectionStatus = Properties.SelectionStatus.None;
 			}
 
 			public SelectableText(int left, int top, string text) : base(left, top, text.Length + 2, 1, MenuColor.ContentBG, MenuColor.ContentFG) {
-				this.left = left;
-				this.top = top;
-				this.text = text;
-				this.enabled = true;
-				this.visible = true;
-				this.selectionStatus = Properties.SelectionStatus.None;
+				Left = left;
+				Top = top;
+				Text = text;
+				Enabled = true;
+				Visible = true;
+				SelectionStatus = Properties.SelectionStatus.None;
 			}
 
+			public bool Enabled { get; set; }
+			public Properties.SelectionStatus SelectionStatus { get; set; }
+			public string Text { get; set; }
+			public bool Visible { get; set; }
+
 			public void Deselect() {
-				this.selectionStatus = Properties.SelectionStatus.None;
+				SelectionStatus = Properties.SelectionStatus.None;
 				Draw();
 			}
 
-			public void Draw() {
-				if (visible) {
-					Console.SetCursorPosition(left, top);
+			public override void Draw() {
+				if (Visible) {
+					Console.SetCursorPosition(Left, Top);
 					SetConsoleColor();
-					Console.Write(this.ToString());
+					Console.Write(ToString());
 				}
 			}
 
 			public void Highlight() {
-				this.selectionStatus = Properties.SelectionStatus.Highlighted;
+				SelectionStatus = Properties.SelectionStatus.Highlighted;
 				Draw();
 			}
 
 			public void Select() {
-				this.selectionStatus = Properties.SelectionStatus.Selected;
+				SelectionStatus = Properties.SelectionStatus.Selected;
 				Draw();
 			}
 
 			public void SetConsoleColor() {
-				if (enabled) {
-					switch (selectionStatus) {
+				if (Enabled) {
+					switch (SelectionStatus) {
 						case Properties.SelectionStatus.None:
 							Console.BackgroundColor = MenuColor.ContentBG;
 							Console.ForegroundColor = MenuColor.ContentFG;
@@ -663,7 +719,7 @@ namespace CarrionManagerConsole
 							break;
 					}
 				} else {
-					if (selectionStatus == Properties.SelectionStatus.Selected || selectionStatus == Properties.SelectionStatus.Highlighted) {
+					if (SelectionStatus == Properties.SelectionStatus.Selected || SelectionStatus == Properties.SelectionStatus.Highlighted) {
 						Console.BackgroundColor = MenuColor.SelectedDisabledBG;
 						Console.ForegroundColor = MenuColor.SelectedDisabledFG;
 					} else {
@@ -674,59 +730,266 @@ namespace CarrionManagerConsole
 			}
 
 			public override string ToString() {
-				string fixedWidthText = FixedWidth(text, width - 2);
-				if (this.selectionStatus == Properties.SelectionStatus.None) {
-					return Text.UnselectedLeftSymbol + fixedWidthText + Text.UnselectedRightSymbol;
-				} else if (this.selectionStatus == Properties.SelectionStatus.Selected) {
-					return Text.SelectedLeftSymbol + fixedWidthText + Text.SelectedRightSymbol;
-				} else if (this.selectionStatus == Properties.SelectionStatus.Highlighted) {
-					return Text.HighlightedLeftSymbol + fixedWidthText + Text.HighlightedRightSymbol;
+				string fixedWidthText = FixedWidth(Text, Width - 2);
+				if (SelectionStatus == Properties.SelectionStatus.None) {
+					return CarrionManagerConsole.Text.UnselectedLeftSymbol + fixedWidthText + CarrionManagerConsole.Text.UnselectedRightSymbol;
+				} else if (SelectionStatus == Properties.SelectionStatus.Selected) {
+					return CarrionManagerConsole.Text.SelectedLeftSymbol + fixedWidthText + CarrionManagerConsole.Text.SelectedRightSymbol;
+				} else if (SelectionStatus == Properties.SelectionStatus.Highlighted) {
+					return CarrionManagerConsole.Text.HighlightedLeftSymbol + fixedWidthText + CarrionManagerConsole.Text.HighlightedRightSymbol;
 				} else {
-					throw new Exception(String.Format("Unsupported SelectionOption \"{0}\"", this.selectionStatus.ToString()));
+					throw new Exception(string.Format("Unsupported SelectionOption \"{0}\"", SelectionStatus.ToString()));
 				}
 			}
 		}
-		public class Selection
+		public abstract class SelectableTextContainer : Navigable
 		{
-			public ListBox list;
-			public int rowIndex, columnIndex;
-			public Properties.Command command;
+			private Properties.Alignment alignment;
+			private bool canNavigateHorizontally;
+			private bool canNavigateVertically;
 
-			public Selection(ListBox list, int columnIndex, int rowIndex, Properties.Command command) {
-				this.list = list;
-				this.columnIndex = columnIndex;
-				this.rowIndex = rowIndex;
-				this.command = command;
+			public SelectableTextContainer(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground, Properties.Alignment alignment) :
+				base(left, top, width, height, background, foreground) {
+				Alignment = alignment;
+				InitItems();
 			}
 
-			public string Text => list.items[rowIndex].text;
+			#region INavigable
+			public override bool CanNavigate => !IsEmpty;
+			public override bool CanNavigateDown => canNavigateVertically;
+			public override bool CanNavigateLeft => canNavigateHorizontally;
+			public override bool CanNavigateRight => canNavigateHorizontally;
+			public override bool CanNavigateUp => canNavigateVertically;
+			public override int CurrentColumn {
+				get {
+					if (Alignment == Properties.Alignment.Horizontal) {
+						return SelectedItemIndex;
+					} else if (Alignment == Properties.Alignment.Vertical) {
+						return 1;
+					} else {
+						throw new Exception(Text.InvalidAlignment);
+					}
+				}
+			}
+			public override int CurrentRow {
+				get {
+					if (Alignment == Properties.Alignment.Horizontal) {
+						return 1;
+					} else if (Alignment == Properties.Alignment.Vertical) {
+						return SelectedItemIndex;
+					} else {
+						throw new Exception(Text.InvalidAlignment);
+					}
+				}
+			}
+			public override bool IsActive => IndexValid(SelectedItemIndex);
+
+			public override void Deactivate() {
+				Deselect();
+			}
+
+			public abstract override void Draw();
+
+			public override void NavigateDown() {
+				if (CanNavigateDown) {
+					Navigate(1);
+				}
+			}
+
+			public override void NavigateLeft() {
+				if (CanNavigateLeft) {
+					Navigate(-1);
+				}
+			}
+
+			public override void NavigateRight() {
+				if (CanNavigateRight) {
+					Navigate(1);
+				}
+			}
+
+			public override void NavigateToDefault() {
+				SelectFirstItem();
+			}
+
+			public override void NavigateToFirstColumn(int row) {
+				if (Alignment == Properties.Alignment.Horizontal) {
+					SelectLastItem();
+				} else if (Alignment == Properties.Alignment.Vertical) {
+					Select(row);
+				}
+			}
+			public override void NavigateToFirstRow(int column) {
+				if (Alignment == Properties.Alignment.Horizontal) {
+					Select(column);
+				} else if (Alignment == Properties.Alignment.Vertical) {
+					SelectLastItem();
+				}
+			}
+
+			public override void NavigateToLastColumn(int row) {
+				NavigateToFirstColumn(row);
+			}
+
+			public override void NavigateToLastRow(int column) {
+				NavigateToFirstRow(column);
+			}
+
+			public override void NavigateUp() {
+				if (CanNavigateUp) {
+					Navigate(-1);
+				}
+			}
+
+			public override void PageDown() {
+				if (CanNavigateDown) {
+					Navigate(Height);
+				}
+			}
+
+			public override void PageUp() {
+				if (CanNavigateUp) {
+					Navigate(-Height);
+				}
+			}
+
+			#endregion
+
+			#region SelectableTextContainer
+			public Properties.Alignment Alignment {
+				get { return alignment; }
+				set {
+					alignment = value;
+					canNavigateHorizontally = alignment == Properties.Alignment.Horizontal;
+					canNavigateVertically = alignment == Properties.Alignment.Vertical;
+				}
+			}
+			public List<SelectableText> Items { get; set; }
+			public bool IsEmpty => Items == null || Items.Count == 0;
+			public SelectableText SelectedItem => IndexValid(SelectedItemIndex) ? Items[SelectedItemIndex] : null;
+			public int SelectedItemIndex { get; set; }
+
+			public event EventHandler<SelectionChangedEventArgs> SelectionChanged;
+
+			public int ClampIndex(int index) {
+				if (IsEmpty) {
+					return 0;
+				} else {
+					return Math.Clamp(index, 0, Items.Count - 1);
+				}
+			}
+
+			public void Deselect() {
+				if (IndexValid(SelectedItemIndex)) {
+					SelectedItem.Deselect();
+				}
+				SelectedItemIndex = -1;
+			}
+
+			public virtual void HandleSelectionChanged(SelectionChangedEventArgs e) {
+				SelectionChanged?.Invoke(this, e);
+			}
+
+			public void HighlightCurrentItem() {
+				if (IndexValid(SelectedItemIndex)) {
+					SelectedItem.Highlight();
+				}
+			}
+
+			public void InitItems() {
+				SelectedItemIndex = 0;
+				Items = new List<SelectableText>();
+			}
+
+			public bool IndexValid(int index) {
+				return !IsEmpty && index >= 0 && index < Items.Count;
+			}
+
+			public abstract void Navigate(int offset);
+
+			public Selection PromptSelection() {
+				var input = PromptInput();
+				return new Selection(this, CurrentColumn, CurrentRow, input.Command);
+			}
+
+			public void Select(int index) {
+				if (IsEmpty) {
+					return;
+				}
+				var previousItemIndex = SelectedItemIndex;
+				var previousItem = SelectedItem;
+				Deselect();
+				SelectedItemIndex = ClampIndex(index);
+				SelectedItem.Select();
+
+				var args = new SelectionChangedEventArgs() {
+					PreviousItem = previousItem,
+					PreviousItemIndex = previousItemIndex,
+					SelectedItem = SelectedItem,
+					SelectedItemIndex = SelectedItemIndex,
+				};
+				HandleSelectionChanged(args);
+			}
+
+			public void SelectFirstItem() {
+				if (!IsEmpty) {
+					Select(0);
+				}
+			}
+
+			public void SelectLastItem() {
+				if (!IsEmpty) {
+					Select(Items.Count - 1);
+				}
+			}
+			#endregion
 		}
-		public class SelectionPrompt : Box
+		public class Selection
+		{
+			public Selection(SelectableTextContainer list, int columnIndex, int rowIndex, Properties.Command command) {
+				List = list;
+				ColumnIndex = columnIndex;
+				RowIndex = rowIndex;
+				Command = command;
+			}
+
+			public Properties.Command Command { get; set; }
+			public int ColumnIndex { get; set; }
+			public SelectableTextContainer List { get; set; }
+			public int RowIndex { get; set; }
+			public SelectableText SelectedItem => List.Items[(List.Alignment == Properties.Alignment.Horizontal ? ColumnIndex : RowIndex)];
+			public string Text => SelectedItem.Text;
+		}
+		public class SelectionPrompt : Drawable
 		{
 			public SelectionPrompt(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground) : base(left, top, width, height, background, foreground) { }
+
+			public override void Draw() {
+				throw new NotImplementedException();
+			}
 
 			public int PromptSelection(string[] selectableItems, Options options) {
 				this.Clear();
 				var items = new List<SelectableText>();
-				int textLeft = this.left;
+				int textLeft = this.Left;
 				for (int i = 0; i < selectableItems.Length; ++i) {
 					var item = selectableItems[i];
-					var selectableText = new SelectableText(textLeft, this.top, item);
+					var selectableText = new SelectableText(textLeft, this.Top, item);
 					if (options.disabledItems.Contains(i)) {
-						selectableText.enabled = false;
+						selectableText.Enabled = false;
 					}
 					items.Add(selectableText);
 					textLeft = selectableText.Right + 1;
 				}
 
 				if (options.cancel) {
-					items.Add(new SelectableText(textLeft, top, Text.Cancel));
+					items.Add(new SelectableText(textLeft, Top, Text.Cancel));
 				}
 
 				int selected = options.index;
 				if (selected == -1) {
 					for (int i = 0; i < items.Count; ++i) {
-						if (items[i].enabled) {
+						if (items[i].Enabled) {
 							selected = i;
 							break;
 						}
@@ -735,7 +998,7 @@ namespace CarrionManagerConsole
 						throw new Exception("Prompted selection without valid items!");
 					}
 				}
-				items[selected].selectionStatus = Properties.SelectionStatus.Selected;
+				items[selected].SelectionStatus = Properties.SelectionStatus.Selected;
 
 				bool finished = false;
 				while (!finished) {
@@ -753,21 +1016,21 @@ namespace CarrionManagerConsole
 							case Properties.Command.NavigateLeft:
 								if (selected > 0) {
 									inputValid = true;
-									items[selected].selectionStatus = Properties.SelectionStatus.None;
+									items[selected].SelectionStatus = Properties.SelectionStatus.None;
 									selected--;
-									items[selected].selectionStatus = Properties.SelectionStatus.Selected;
+									items[selected].SelectionStatus = Properties.SelectionStatus.Selected;
 								}
 								break;
 							case Properties.Command.NavigateRight:
 								if (selected < items.Count - 1) {
 									inputValid = true;
-									items[selected].selectionStatus = Properties.SelectionStatus.None;
+									items[selected].SelectionStatus = Properties.SelectionStatus.None;
 									selected++;
-									items[selected].selectionStatus = Properties.SelectionStatus.Selected;
+									items[selected].SelectionStatus = Properties.SelectionStatus.Selected;
 								}
 								break;
 							case Properties.Command.Confirm:
-								if (items[selected].enabled) {
+								if (items[selected].Enabled) {
 									if (options.cancel && selected == (items.Count - 1)) {
 										selected = -1;
 									}
@@ -785,7 +1048,7 @@ namespace CarrionManagerConsole
 						}
 					}
 				}
-				this.Clear();
+				Clear();
 				return selected;
 			}
 
@@ -808,6 +1071,100 @@ namespace CarrionManagerConsole
 					disabledItems = new List<int>();
 				}
 			}
+		}
+		public class TextBox : Drawable
+		{
+			private int nextEmptyLine;
+
+			public TextBox(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground) : base(left, top, width, height, background, foreground) {
+				Content = new string[Height];
+				nextEmptyLine = 0;
+			}
+
+			public string[] Content { get; set; }
+			public int RemainingFreeLines => nextEmptyLine == -1 ? 0 : Height - nextEmptyLine;
+
+			public void AppendLastLine(string text) {
+				int lastWrittenLine = nextEmptyLine == -1 ? Height - 1 : nextEmptyLine - 1;
+				Content[lastWrittenLine] += text;
+				Write(Left, Top + lastWrittenLine, FixedWidth(Content[lastWrittenLine], Width));
+			}
+
+			public void ClearContent() {
+				for (int i = 0; i < Content.Length; ++i) {
+					Content[i] = string.Empty;
+				}
+				nextEmptyLine = 0;
+				Draw();
+			}
+
+			public override void Draw() {
+				for (int i = 0; i < Content.Length; ++i) {
+					Write(Left, Top + i, FixedWidth(Content[i], Width), Background, Foreground);
+				}
+			}
+
+			public void WriteLine(string text) {
+				if (nextEmptyLine == -1) {
+					for (int i = 0; i < Content.Length - 1; ++i) {
+						Content[i] = Content[i + 1];
+					}
+					Content[^1] = text;
+					Draw();
+				} else {
+					Content[nextEmptyLine] = text;
+					Write(Left, Top + nextEmptyLine, FixedWidth(text, Width), Background, Foreground);
+					nextEmptyLine++;
+					if (nextEmptyLine >= Height) {
+						nextEmptyLine = -1; // No empty lines remain
+					}
+				}
+			}
+
+			public void WriteLine() {
+				WriteLine(string.Empty);
+			}
+		}
+
+		public interface IDrawable
+		{
+			public int Left { get; set; }
+			public int Top { get; set; }
+			public int Width { get; set; }
+			public int Height { get; set; }
+			public ConsoleColor Background { get; set; }
+			public ConsoleColor Foreground { get; set; }
+
+			public int Bottom { get; }
+			public int Right { get; }
+
+			public abstract void Clear();
+			public abstract void Draw();
+		}
+		public interface INavigable : IDrawable
+		{
+			public bool CanNavigate { get; }
+			public bool CanNavigateDown { get; }
+			public bool CanNavigateLeft { get; }
+			public bool CanNavigateRight { get; }
+			public bool CanNavigateUp { get; }
+			public int CurrentColumn { get; }
+			public int CurrentRow { get; }
+			public bool IsActive { get; }
+
+			public abstract void Deactivate();
+			public abstract void NavigateDown();
+			public abstract void NavigateLeft();
+			public abstract void NavigateRight();
+			public abstract void NavigateToDefault();
+			public abstract void NavigateToFirstColumn(int row);
+			public abstract void NavigateToFirstRow(int column);
+			public abstract void NavigateToLastColumn(int row);
+			public abstract void NavigateToLastRow(int column);
+			public abstract void NavigateUp();
+			public abstract void PageDown();
+			public abstract void PageUp();
+			public abstract Input PromptInput();
 		}
 
 		#region Event Arguments

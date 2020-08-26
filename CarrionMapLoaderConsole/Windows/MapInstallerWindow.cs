@@ -7,70 +7,48 @@ using System.Text;
 
 namespace CarrionManagerConsole
 {
-	class MapInstallerWindow : IWindow
+	class MapInstallerWindow : DefaultWindow
 	{
-		private readonly GUI.Label title;
-		private readonly GUI.ListMenu mapsMenu;
-		private readonly GUI.Box menuCommandSeparator;
-		private readonly GUI.SelectionPrompt selectionPrompt;
-		private readonly GUI.Box commandTextSeparator;
-		private readonly GUI.TextBox textBox;
+		private bool ignoreNextSelectionChangedEvent;
 
-		private bool windowQuit;
-
-		public const int
-			CommandTextLeft = 0, CommandTextTop = 27,
-			CommandItemsLeft = 0, CommandItemsTop = 28;
-
-		public MapInstallerWindow() {
-			int width = Console.WindowWidth;
-			int height = Console.WindowHeight;
-			title = new GUI.Label(0, 0, width, 1, MenuColor.MapInstallerWindowTitleBG, MenuColor.MapInstallerWindowTitleFG, Text.MapInstallerWindowTitle) {
-				HorizontalAlignment = Properties.HorizontalAlignment.Center
-			};
-			mapsMenu = new GUI.ListMenu(0, 1, width, height - 10, 2, MenuColor.ContentBG, MenuColor.ContentFG);
-			mapsMenu.SetColumnContent(0, Text.InstalledMaps, Program.MapListToStringArray(Program.installedMaps));
-			mapsMenu.SetColumnContent(1, Text.AvailableMaps, Program.MapListToStringArray(Program.availableMaps));
-			mapsMenu.lists[1].SelectionChanged += AvailableMapSelectionChanged;
-			menuCommandSeparator = new GUI.Box(0, height - 9, width, 1, MenuColor.SeparatorBG, MenuColor.SeparatorFG);
-			selectionPrompt = new GUI.SelectionPrompt(0, height - 8, width, 1, MenuColor.ContentBG, MenuColor.ContentFG);
-			commandTextSeparator = new GUI.Box(0, height - 7, width, 1, MenuColor.SeparatorBG, MenuColor.SeparatorFG);
-			textBox = new GUI.TextBox(0, height - 6, width, 4, MenuColor.ContentBG, MenuColor.ContentFG);
+		public MapInstallerWindow() : base(Text.MapInstallerWindowTitle, MenuColor.MapInstallerWindowTitleBG, MenuColor.MapInstallerWindowTitleFG) {
+			InstalledMapsList = Menu.AddListBox(0, Text.MapInstallerInstalledMapsHeader, true);
+			InstalledMapsList.SetContent(Program.MapListToStringArray(Program.installedMaps));
+			InstalledMapsList.SelectionChanged += InstalledMapSelectionChanged;
+			AvailableMapsList = Menu.AddListBox(1, Text.MapInstallerAvailableMapsHeader, true);
+			AvailableMapsList.SetContent(Program.MapListToStringArray(Program.availableMaps));
+			AvailableMapsList.SelectionChanged += AvailableMapSelectionChanged;
+			ignoreNextSelectionChangedEvent = false;
 		}
 
-		public void DrawAll() {
-			GUI.Reset();
-			title.Draw();
-			mapsMenu.Draw();
-			menuCommandSeparator.Clear();
-			selectionPrompt.Clear();
-			commandTextSeparator.Clear();
-			textBox.Draw();
-			Program.controlsLabel.Draw();
-		}
+		public GUI.ListBox InstalledMapsList;
+		public GUI.ListBox AvailableMapsList;
 
 		public void AvailableMapSelectionChanged(object sender, GUI.SelectionChangedEventArgs args) {
-			var selectedMap = Program.availableMaps[args.SelectedItemIndex];
-			if (!selectedMap.IsValid) {
-				textBox.Clear();
-				foreach (var issue in selectedMap.Issues) {
-					textBox.WriteLine(issue);
-				}
-			} else if (args.PreviousItemIndex >= 0 && args.PreviousItemIndex < Program.availableMaps.Count) {
-				var previousMap = Program.availableMaps[args.PreviousItemIndex];
-				if (!previousMap.IsValid) {
-					textBox.Clear();
-				}
+			if (ignoreNextSelectionChangedEvent) {
+				ignoreNextSelectionChangedEvent = false;
+			} else {
+				var selectedMap = Program.availableMaps[args.SelectedItemIndex];
+				WriteMapInfo(selectedMap);
+			}
+		}
+
+		public void InstalledMapSelectionChanged(object sender, GUI.SelectionChangedEventArgs args) {
+			if (ignoreNextSelectionChangedEvent) {
+				ignoreNextSelectionChangedEvent = false;
+			} else {
+				var selectedMap = Program.installedMaps[args.SelectedItemIndex];
+				WriteMapInfo(selectedMap);
 			}
 		}
 
 		public void InstallMap(LoadableMap map, bool overwrite) {
 			if (FindInstalledMap(map.Name) != null) {
-				textBox.WriteLine(string.Format("ERROR: Map {0} is already installed!", map.Name));
+				LogTextBox.WriteLine(string.Format("ERROR: Map {0} is already installed!", map.Name));
 				return;
 			}
 
-			textBox.WriteLine(string.Format("Installing map {0}...", map.Name));
+			LogTextBox.WriteLine(string.Format("Installing map {0}...", map.Name));
 
 			string levelSourcePath = Path.Combine(map.MapPath, Program.LevelFolderName);
 			string scriptSourcePath = Path.Combine(map.MapPath, Program.ScriptFolderName);
@@ -86,21 +64,27 @@ namespace CarrionManagerConsole
 				File.Copy(sourcePath, destinationPath, overwrite);
 			}
 
-			var installedMap = new Map {
-				Name = map.Name,
-				Levels = new string[map.Levels.Length],
-				Scripts = new string[map.Scripts.Length]
-			};
+			var installedMap = new Map(
+				map.Name,
+				map.Author,
+				map.Version,
+				map.ShortDescription,
+				map.LongDescription,
+				new string[map.Levels.Length],
+				new string[map.Scripts.Length],
+				map.StartupLevel,
+				map.Issues);
 			if (installedMap.Levels.Length == 1) {
-				installedMap.startupLevel = Program.RemoveLevelExtension(map.Levels[0]);
+				installedMap.StartupLevel = Program.RemoveLevelExtension(map.Levels[0]);
 			}
 			map.Levels.CopyTo(installedMap.Levels, 0);
 			map.Scripts.CopyTo(installedMap.Scripts, 0);
 			Program.installedMaps.Add(installedMap);
-			mapsMenu.SetColumnContent(0, Text.InstalledMaps, Program.MapListToStringArray(Program.installedMaps));
+			InstalledMapsList.SetContent(Program.MapListToStringArray(Program.installedMaps));
 			Program.SaveInstalledMaps();
-			mapsMenu.Draw();
-			textBox.AppendLastLine(" installed!");
+			Menu.Draw();
+			LogTextBox.AppendLastLine(" installed!");
+			ignoreNextSelectionChangedEvent = true;
 		}
 
 		public void ReinstallMap(Map installedMap, LoadableMap toInstall) {
@@ -108,74 +92,87 @@ namespace CarrionManagerConsole
 			InstallMap(toInstall, false);
 		}
 
-		public void Show() {
-			mapsMenu.SelectFirstItem();
-			DrawAll();
-			windowQuit = false;
-			while (!windowQuit) {
-				GUI.Selection selection = mapsMenu.PromptInput();
-				switch (selection.command) {
-					case Properties.Command.Confirm:
-						if (selection.list.IsEmpty) {
-							continue;
-						}
+		public override void Selected(GUI.Selection selection) {
+			selection.SelectedItem.Highlight();
 
-						var selectedItem = selection.list.SelectedItem;
-						selectedItem.Highlight();
-
-						if (selection.columnIndex == 0) { // Installed Maps -> Uninstall
-							textBox.Clear();
-							int response = selectionPrompt.PromptSelection(new string[] { Text.Uninstall }, new GUI.SelectionPrompt.Options() { cancel = true });
-							if (response == 0) {
-								var currentRow = mapsMenu.CurrentList.selectedItemIndex;
-								UninstallMap(Program.installedMaps[selection.rowIndex]);
-								if (mapsMenu.CurrentList.IsEmpty) {
-									mapsMenu.SelectFirstItem();
-								} else {
-									mapsMenu.CurrentList.Select(currentRow);
-								}
-							} else {
-								mapsMenu.CurrentList.Select(mapsMenu.CurrentList.selectedItemIndex);
-							}
-						} else if (selection.columnIndex == 1) { // Available Maps -> Install/Reinstall
-							int response;
-							var selectedLoadableMap = Program.availableMaps[selection.rowIndex];
-							var alreadyInstalledMap = FindInstalledMap(selection.Text);
-							if (alreadyInstalledMap != null) { // If the map is already installed
-								textBox.Clear();
-								textBox.WriteLine(String.Format("Map \"{0}\" is already installed. Reinstall?", selection.Text));
-								response = selectionPrompt.PromptSelection(new string[] { Text.Reinstall }, true);
-								if (response == 0) {
-									ReinstallMap(alreadyInstalledMap, selectedLoadableMap);
-								} else {
-									textBox.Clear();
-								}
-							} else if (VerifyNothingOverwritten(selectedLoadableMap)) {
-								textBox.Clear();
-								response = selectionPrompt.PromptSelection(new string[] { Text.Install }, true);
-								if (response == 0) {
-									InstallMap(Program.availableMaps[selection.rowIndex], false);
-								} else {
-									textBox.Clear();
-								}
-							}
-							selection.list.Select(selection.rowIndex);
+			if (selection.ColumnIndex == 0) { // Installed Maps -> Uninstall
+				var selectedMap = Program.installedMaps[selection.RowIndex];
+				LogTextBox.ClearContent();
+				string[] selections;
+				if (selectedMap.IsValid) {
+					selections = new string[] { Text.Uninstall };
+				} else {
+					selections = new string[] { Text.Uninstall, Text.ShowIssues };
+				}
+				int response = SelectionPrompt.PromptSelection(selections, true);
+				switch (response) {
+					case 0:
+						var currentRow = Menu.CurrentRow;
+						UninstallMap(selectedMap);
+						if (InstalledMapsList.CanNavigate) {
+							InstalledMapsList.Select(currentRow);
+						} else {
+							Menu.NavigateToDefault();
 						}
 						break;
-					case Properties.Command.Cancel:
-						Program.currentWindow = Program.navigationWindow;
-						this.windowQuit = true;
+					case 1:
+						selectedMap.ShowIssues();
+						DrawAll();
 						break;
 				}
-
-				if (!windowQuit) {
-					windowQuit = Program.navigationWindow.ChangeWindow(selection.command);
+			} else if (selection.ColumnIndex == 1) { // Available Maps -> Install/Reinstall/Overwrite
+				var selectedLoadableMap = Program.availableMaps[selection.RowIndex];
+				var alreadyInstalledMap = FindInstalledMap(selectedLoadableMap.Name);
+				if (alreadyInstalledMap != null) { // If the map is already installed
+					LogTextBox.ClearContent();
+					LogTextBox.WriteLine(string.Format(Text.PromptReinstall, alreadyInstalledMap.Name));
+					string[] selections;
+					if (selectedLoadableMap.IsValid) {
+						selections = new string[] { Text.Reinstall };
+					} else {
+						selections = new string[] { Text.Reinstall, Text.ShowIssues };
+					}
+					int response = SelectionPrompt.PromptSelection(selections, true);
+					switch (response) {
+						case 0:
+							ReinstallMap(alreadyInstalledMap, selectedLoadableMap);
+							break;
+						case 1:
+							selectedLoadableMap.ShowIssues();
+							DrawAll();
+							break;
+						default:
+							WriteMapInfo(selectedLoadableMap);
+							break;
+					}
+				} else if (VerifyNothingOverwritten(selectedLoadableMap)) {
+					LogTextBox.ClearContent();
+					string[] selections;
+					if (selectedLoadableMap.IsValid) {
+						selections = new string[] { Text.Install };
+					} else {
+						selections = new string[] { Text.Install, Text.ShowIssues };
+					}
+					int response = SelectionPrompt.PromptSelection(selections, true);
+					switch (response) {
+						case 0:
+							InstallMap(selectedLoadableMap, false);
+							break;
+						case 1:
+							selectedLoadableMap.ShowIssues();
+							DrawAll();
+							break;
+						default:
+							WriteMapInfo(selectedLoadableMap);
+							break;
+					}
 				}
+				selection.List.Select(selection.RowIndex);
 			}
 		}
 
 		public void UninstallMap(Map map) {
-			textBox.WriteLine(String.Format("Uninstalling map {0}...", map.Name));
+			LogTextBox.WriteLine(string.Format(Text.UninstallingMap, map.Name));
 			foreach (var level in map.Levels) {
 				var levelPath = Path.Combine(Program.installedLevelsPath, level);
 				File.Delete(levelPath);
@@ -186,15 +183,14 @@ namespace CarrionManagerConsole
 			}
 			Program.installedMaps.Remove(map);
 			Program.SaveInstalledMaps();
-			mapsMenu.SetColumnContent(0, "Installed Maps", Program.MapListToStringArray(Program.installedMaps));
-
-			if (!CheckMapsExist()) {
-				return;
+			InstalledMapsList.SetContent(Program.MapListToStringArray(Program.installedMaps));
+			InstalledMapsList.Clear();
+			InstalledMapsList.Draw();
+			LogTextBox.AppendLastLine(" uninstalled!");
+			if (Program.backupsWindow.RestoreInstalledMapFiles(map)) {
+				LogTextBox.WriteLine(Text.BackedUpFilesRestored);
 			}
-
-			mapsMenu.Clear();
-			mapsMenu.Draw();
-			textBox.AppendLastLine(" uninstalled!");
+			ignoreNextSelectionChangedEvent = true;
 		}
 
 		public Map FindInstalledMap(string mapName) {
@@ -207,8 +203,8 @@ namespace CarrionManagerConsole
 			return null;
 		}
 
-		private bool CheckMapsExist() {
-			return (Program.installedMaps.Count > 0 || Program.availableMaps.Count > 0);
+		public override void PreShow() {
+
 		}
 
 		private bool VerifyNothingOverwritten(LoadableMap map) {
@@ -228,23 +224,63 @@ namespace CarrionManagerConsole
 				}
 			}
 			if (existingLevels.Count > 0 || existingScripts.Count > 0) {
-				textBox.Clear();
-				textBox.WriteLine("Map is not marked as installed, but one or more files already exist. Overwrite?");
-				textBox.WriteLine(String.Format("Levels: {0}", string.Join(',', existingLevels.ToArray())));
-				textBox.WriteLine(String.Format("Scripts: {0}", string.Join(',', existingLevels.ToArray())));
-				textBox.WriteLine("It is recommended to backup your original files before overwriting them.");
+				LogTextBox.ClearContent();
+				LogTextBox.WriteLine("Map is not marked as installed, but one or more files already exist. Overwrite?");
+				LogTextBox.WriteLine(string.Format("Levels: {0}", string.Join(',', existingLevels.ToArray())));
+				LogTextBox.WriteLine(string.Format("Scripts: {0}", string.Join(',', existingLevels.ToArray())));
+				LogTextBox.WriteLine("Backup & Install: Listed files will be backed up and restored when uninstalling this map.");
 				var options = new GUI.SelectionPrompt.Options() {
 					cancel = true,
-					index = 1,
+					index = 2,
 				};
-				int response = selectionPrompt.PromptSelection(new string[] { Text.Overwrite }, options);
-				if (response == 0) {
-					InstallMap(map, true);
-				} else textBox.Clear();
+				int response = SelectionPrompt.PromptSelection(new string[] { Text.Overwrite, Text.BackupAndInstall }, options);
+				LogTextBox.ClearContent();
+				switch (response) {
+					case 0:
+						InstallMap(map, true);
+						break;
+					case 1:
+						// TODO: Verify in case backups would be overwritten.
+						LogTextBox.WriteLine(Text.BackingUpFiles);
+						Program.backupsWindow.BackUpInstalledMapFiles(map);
+						LogTextBox.AppendLastLine(" " + Text.BackupFinished);
+						InstallMap(map, true);
+						break;
+					default:
+						WriteMapInfo(map);
+						break;
+				}
 
 				return false;
 			} else {
 				return true;
+			}
+		}
+
+		private void WriteMapInfo(Map map) {
+			LogTextBox.ClearContent();
+			string firstLine = Text.MapInfoMapName + map.Name;
+			if (map.Version != null) {
+				firstLine += Text.MapInfoSeparator + Text.MapInfoVersion + map.Version;
+			}
+			if (map.Author != null) {
+				firstLine += Text.MapInfoSeparator + Text.MapInfoAuthor + map.Author;
+			}
+			LogTextBox.WriteLine(firstLine);
+
+			if (map.ShortDescription != null) {
+				LogTextBox.WriteLine(Text.MapInfoShortDescription + map.ShortDescription);
+			}
+
+			if (!map.IsValid) {
+				for (int currentIssue = 0; currentIssue < map.Issues.Count; ++currentIssue) {
+					if (LogTextBox.RemainingFreeLines > 1 || map.Issues.Count - currentIssue == 1) {
+						LogTextBox.WriteLine(Text.MapHasIssuesIndicator + map.Issues[currentIssue]);
+					} else {
+						LogTextBox.WriteLine(string.Format(Text.SoManyMoreIssues, map.Issues.Count - currentIssue));
+						break;
+					}
+				}
 			}
 		}
 	}

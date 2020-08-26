@@ -12,7 +12,11 @@ namespace CarrionManagerConsole
 		 * Author: Encreedem
 		 * 
 		 * ### TODO ###
-		 * Settings Manager
+		 * Backup files before overwriting them
+		 * Restore files after uninstalling a map
+		 * Show how to prepare custom maps: Add a folder + map to this program's root folder.
+		 * Check whether GOG needs a custom way to launch Carrion
+		 * Check whether other platforms exist for Carrion
 		 * Logger
 		 * 
 		 * ### To consider ###
@@ -20,13 +24,20 @@ namespace CarrionManagerConsole
 		 * Setup
 		 * Backup Maps/other content files
 		 * Settings
+		 * Map Extractor (maybe with File Explorer)
+		 * 
+		 * ### Mapping Tools ###
+		 * Add installed map manually
+		 * Window to configure map info and add/remove levels
+		 * Verify map
+		 * Export map
 		 * 
 		 * --- Settings ---
 		 * Override Prompt: Confirm before files would be overridden.
 		 * */
 		public const string
 			ProgramName = "Carrion Manager Console",
-			ProgramVersion = "v0.1 alpha";
+			ProgramVersion = "v0.2 alpha";
 
 		public const int
 			MinConsoleWidth = 120,
@@ -39,13 +50,17 @@ namespace CarrionManagerConsole
 			ContentFolderName = "Content",
 			SaveFolderName = "Saves", SaveFileExtension = ".crn",
 			BackupFolderName = "Backups",
-			SavesBackupsFolderName = "Saves", SaveInfoFileName = "SaveInfo.txt";
+			SavesBackupsFolderName = "Saves", SaveInfoFileName = "SaveInfo.txt",
+			LevelBackupsFolderName = "Levels",
+			ScriptBackupsFolderName = "Scripts",
+			ZippedFileExtension = ".zip";
 		public const string
 			SteamRegistryPath = @"Computer\HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Valve\Steam",
 			SteamRegistryKey = "InstallPath",
 			GameExeName = "Carrion.exe",
 			ConfigFileName = "CarrionManagerConsole.cfg",
-			InstalledMapsFileName = "InstalledMaps.txt";
+			InstalledMapsFileName = "InstalledMaps.txt",
+			MapInfoFileName = "MapInfo.txt";
 		public const string
 			LaunchSteamGameArgument = "-applaunch 953490",
 			CustomLevelArgument = " -level {0}";
@@ -62,10 +77,13 @@ namespace CarrionManagerConsole
 			installedLevelsPath,
 			installedMapsPath,
 			installedScriptsPath,
+			levelBackupsPath,
+			scriptBackupsPath,
 			steamPath,
 			saveBackupsPath,
 			saveInfoFilePath,
-			saveFolderPath;
+			saveFolderPath,
+			zippedMapsFolder;
 		#endregion
 
 		public static Dictionary<ConsoleKey, Properties.Command> keybindings;
@@ -75,7 +93,6 @@ namespace CarrionManagerConsole
 		public static bool manageSaves;
 		public static Properties.GameLaunchMethod gameLaunchMethod;
 
-		public static GUI.Label controlsLabel;
 		// Windows
 		public static string[] windowNames;
 		public static IWindow currentWindow;
@@ -83,6 +100,7 @@ namespace CarrionManagerConsole
 		public static NavigationWindow navigationWindow;
 		public static MapInstallerWindow mapInstallerWindow;
 		public static SaveManagerWindow saveManagerWindow;
+		public static BackupsWindow backupsWindow;
 
 		public static string GameLaunchMethodToString(Properties.GameLaunchMethod gameLaunchMethod) {
 			return gameLaunchMethod switch
@@ -102,7 +120,6 @@ namespace CarrionManagerConsole
 				if (Console.WindowHeight <= MinConsoleHeight) {
 					Console.WindowHeight = MinConsoleHeight;
 				}
-				controlsLabel = new GUI.Label(0, Console.WindowHeight - 1, Console.WindowWidth - 1, 1, MenuColor.ControlsBG, MenuColor.ControlsFG, Text.DefaultControls);
 				InitFields();
 				LoadDefaultSettings();
 				LoadSettings();
@@ -115,6 +132,7 @@ namespace CarrionManagerConsole
 				Console.ForegroundColor = MenuColor.ErrorFG;
 				Console.WriteLine("\nInitialization failed! Error message:");
 				Console.WriteLine(e.Message);
+				Console.WriteLine(e.StackTrace);
 				Console.WriteLine("\nPress any key to exit...");
 				Console.ReadKey();
 				Environment.Exit(1);
@@ -142,24 +160,25 @@ namespace CarrionManagerConsole
 				[ConsoleKey.NumPad2] = Properties.Command.ShowMapInstaller,
 				[ConsoleKey.D3] = Properties.Command.ShowSaveManager,
 				[ConsoleKey.NumPad3] = Properties.Command.ShowSaveManager,
+				[ConsoleKey.D4] = Properties.Command.ShowBackupsWindow,
+				[ConsoleKey.NumPad4] = Properties.Command.ShowBackupsWindow,
 			};
-			installedMapsPath = Path.Combine(Directory.GetCurrentDirectory(), InstalledMapsFileName);
 		}
 
 		private static void InitWindows() {
-			if (Console.WindowWidth < Text.DefaultControls.Length) {
-				controlsLabel.Text = Text.DefaultControlsShort;
-			}
+			Console.WriteLine("Initializing Windows...");
 			windowNames = new string[] {
 				Text.LauncherWindowTitle,
 				Text.MapInstallerWindowTitle,
 				Text.SaveManagerWindowTitle,
+				Text.BackupsWindowTitle,
 			};
 
 			navigationWindow = new NavigationWindow();
 			launcherWindow = new LauncherWindow();
 			mapInstallerWindow = new MapInstallerWindow();
 			saveManagerWindow = new SaveManagerWindow();
+			backupsWindow = new BackupsWindow();
 
 			currentWindow = navigationWindow;
 		}
@@ -178,8 +197,10 @@ namespace CarrionManagerConsole
 			gameLaunchMethod = Properties.GameLaunchMethod.Steam;
 			steamPath = string.Format("C:{0}Program Files (x86){0}Steam{0}steam.exe", Path.DirectorySeparatorChar);
 			gameRootPath = string.Format("C:{0}Program Files (x86){0}Steam{0}SteamApps{0}common{0}Carrion{0}", Path.DirectorySeparatorChar);
-			customMapsPath = string.Format("C:{0}Games{0}Modding{0}Carrion{0}Custom Maps{0}", Path.DirectorySeparatorChar);
+			backupsPath = string.Format(".{0}Backups{0}", Path.DirectorySeparatorChar);
+			customMapsPath = string.Format(".{0}Custom Maps{0}", Path.DirectorySeparatorChar);
 			appDataPath = string.Format("C:{0}Users{0}your_username{0}AppData{0}LocalLow{0}Phobia{0}Carrion{0}_steam_xxxxxxxxxxxxxxxxx{0}", Path.DirectorySeparatorChar);
+			zippedMapsFolder = string.Format("[user]{0}Downloads", Path.DirectorySeparatorChar);
 			manageSaves = true;
 		}
 
@@ -203,6 +224,8 @@ namespace CarrionManagerConsole
 
 		private static void LoadSettings() {
 			Console.WriteLine("Loading settings file...");
+
+			Setting.Init();
 			var thisPath = Directory.GetCurrentDirectory();
 			configFilePath = Path.Combine(thisPath, ConfigFileName);
 
@@ -211,96 +234,52 @@ namespace CarrionManagerConsole
 				Console.WriteLine("ERROR: Config file not found. New one with default settings was created:");
 				Console.WriteLine(configFilePath);
 				Console.WriteLine("\nOpen this file and adjust all settings:");
-				Console.WriteLine(Text.ConfigLaunchMethodDescription);
-				Console.WriteLine(Text.ConfigSteamPathDescription);
-				Console.WriteLine(Text.ConfigGamePathDescription);
-				Console.WriteLine(Text.ConfigCustomMapsPathDescription);
-				Console.WriteLine(Text.ConfigAppDataPathDescription);
-				Console.WriteLine(Text.ConfigManageSavesDescription);
+				Setting.WriteAllSettingDescriptions();
 				Console.WriteLine();
 				LoadDefaultSettings();
 				SaveSettings();
-				throw new Exception("Settings could not be loaded! See previous messages for details.");
+				throw new Exception(Text.SettingsInvalid);
 			}
 			Console.WriteLine(configFilePath);
 			var settings = ReadInfoFile(configFilePath);
-			List<string> missingSettings = new List<string>();
 
-			if (!settings.ContainsKey(Text.ConfigLaunchMethod)) {
-				missingSettings.Add(Text.ConfigLaunchMethodDescription);
-			} else if (settings[Text.ConfigLaunchMethod].ToLower() == Text.ConfigLaunchMethodDirectly) {
-				gameLaunchMethod = Properties.GameLaunchMethod.Directly;
-			} else if (settings[Text.ConfigLaunchMethod].ToLower() == Text.ConfigLaunchMethodSteam) {
-				gameLaunchMethod = Properties.GameLaunchMethod.Steam;
-			} else {
-				Console.WriteLine("Setting \"{0}\", value \"{1}\" is invalid! Allowed values:",
-					Text.ConfigLaunchMethod,
-					settings[Text.ConfigLaunchMethod].ToString());
-				Console.WriteLine(Text.ConfigLaunchMethodDirectly);
-				Console.WriteLine(Text.ConfigLaunchMethodSteam);
-				Console.WriteLine();
-				throw new Exception("Settings could not be loaded! See previous messages for details.");
+			gameLaunchMethod = Setting.Convert(settings, Text.ConfigLaunchMethod, Setting.ConversionTable.GameLaunchMethod);
+			if (!Setting.MissingSettings.Contains(Text.ConfigLaunchMethod) &&
+				gameLaunchMethod == Properties.GameLaunchMethod.Steam) {
+				steamPath = Setting.GetFilePath(settings, Text.ConfigSteamPath);
 			}
+			gameRootPath = Setting.GetDirectoryPath(settings, Text.ConfigGamePath);
+			backupsPath = Setting.GetDirectoryPath(settings, Text.ConfigBackupsPath);
+			customMapsPath = Setting.GetDirectoryPath(settings, Text.ConfigCustomMapsPath);
+			appDataPath = Setting.GetDirectoryPath(settings, Text.ConfigAppDataPath);
+			manageSaves = Setting.Convert(settings, Text.ConfigManageSaves, Setting.ConversionTable.TrueFalse);
+			zippedMapsFolder = Setting.GetDirectoryPath(settings, Text.ConfigZippedMapsPath);
 
-			if (gameLaunchMethod == Properties.GameLaunchMethod.Steam &&
-				!settings.ContainsKey(Text.ConfigSteamPath)) {
-				missingSettings.Add(Text.ConfigSteamPathDescription);
-			}
-			if (!settings.ContainsKey(Text.ConfigGamePath)) {
-				missingSettings.Add(Text.ConfigGamePathDescription);
-			}
-			if (!settings.ContainsKey(Text.ConfigCustomMapsPath)) {
-				missingSettings.Add(Text.ConfigCustomMapsPathDescription);
-			}
-			if (!settings.ContainsKey(Text.ConfigAppDataPath)) {
-				missingSettings.Add(Text.ConfigAppDataPathDescription);
-			}
-			if (!settings.ContainsKey(Text.ConfigManageSaves)) {
-				missingSettings.Add(Text.ConfigManageSavesDescription);
-			}
-
-			if (missingSettings.Count > 0) {
-				Console.WriteLine("One or more settings are missing:");
-				foreach (var setting in missingSettings) {
-					Console.WriteLine(setting);
+			if (Setting.MissingSettings.Count > 0) {
+				Console.WriteLine(Text.OneOrMoreSettingsAreMissing);
+				foreach (var setting in Setting.MissingSettings) {
+					if (Setting.SettingDescriptions.ContainsKey(setting)) {
+						Console.WriteLine(Setting.SettingDescriptions[setting]);
+					} else {
+						Console.WriteLine(setting);
+					}
 				}
-				throw new Exception("Settings could not be loaded! See previous messages for details.");
-			}
-
-			if (gameLaunchMethod == Properties.GameLaunchMethod.Steam) {
-				steamPath = settings[Text.ConfigSteamPath];
-			}
-			gameRootPath = settings[Text.ConfigGamePath];
-			customMapsPath = settings[Text.ConfigCustomMapsPath];
-			appDataPath = settings[Text.ConfigAppDataPath];
-			if (!Directory.Exists(appDataPath)) {
-				Console.WriteLine("ERROR: AppData path \"{0}\" is invalid.", appDataPath);
-				Console.WriteLine(string.Format("Specify the correct path in \"{0}\".", ConfigFileName));
-				throw new Exception("Settings could not be loaded! See previous messages for details.");
-			}
-			if (settings[Text.ConfigManageSaves].ToLower() == Text.True) {
-				manageSaves = true;
-			} else if (settings[Text.ConfigManageSaves].ToLower() == Text.False) {
-				manageSaves = false;
-			} else {
-				Console.WriteLine("Setting \"{0}\", value \"{1}\" is invalid! Allowed values:",
-					Text.ConfigManageSaves,
-					settings[Text.ConfigManageSaves].ToString());
-				Console.WriteLine(Text.True);
-				Console.WriteLine(Text.False);
-				Console.WriteLine();
-				throw new Exception("Settings could not be loaded! See previous messages for details.");
+				throw new Exception(Text.SettingsCouldNotBeLoaded);
 			}
 
 			gameExePath = Path.Combine(gameRootPath, GameExeName);
 			gameContentPath = Path.Combine(gameRootPath, ContentFolderName);
+			installedMapsPath = Path.Combine(Directory.GetCurrentDirectory(), InstalledMapsFileName);
 			installedLevelsPath = Path.Combine(gameContentPath, LevelFolderName);
 			installedScriptsPath = Path.Combine(gameContentPath, ScriptFolderName);
+			levelBackupsPath = Path.Combine(backupsPath, LevelBackupsFolderName);
+			scriptBackupsPath = Path.Combine(backupsPath, ScriptBackupsFolderName);
 			saveFolderPath = Path.Combine(appDataPath, SaveFolderName);
-			saveInfoFilePath = Path.Combine(Program.saveFolderPath, Program.SaveInfoFileName);
-			backupsPath = Path.Combine(thisPath, BackupFolderName);
+			saveInfoFilePath = Path.Combine(saveFolderPath, SaveInfoFileName);
 			saveBackupsPath = Path.Combine(backupsPath, SavesBackupsFolderName);
+			Directory.CreateDirectory(levelBackupsPath);
 			Directory.CreateDirectory(saveBackupsPath);
+			Directory.CreateDirectory(scriptBackupsPath);
 		}
 
 		public static string[] MapListToStringArray(List<Map> maps) {
@@ -372,17 +351,31 @@ namespace CarrionManagerConsole
 				[Text.ConfigLaunchMethod] = GameLaunchMethodToString(gameLaunchMethod),
 				[Text.ConfigSteamPath] = steamPath,
 				[Text.ConfigGamePath] = gameRootPath,
+				[Text.ConfigBackupsPath] = backupsPath,
 				[Text.ConfigCustomMapsPath] = customMapsPath,
 				[Text.ConfigAppDataPath] = appDataPath,
+				[Text.ConfigZippedMapsPath] = zippedMapsFolder,
 				[Text.ConfigManageSaves] = manageSaves ? Text.True : Text.False,
 			};
-			SaveInfoFile(configFilePath, settings);
+			var adjustedSettings = new Dictionary<string, string>();
+			var currentDirectory = Directory.GetCurrentDirectory();
+			var userDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+			foreach (var setting in settings) {
+				if (setting.Value.StartsWith(currentDirectory)) {
+					adjustedSettings[setting.Key] = Text.PathCurrentDirectoryIndicator + setting.Value.Substring(currentDirectory.Length + 1);
+				} else if (setting.Value.StartsWith(userDirectory)) {
+					adjustedSettings[setting.Key] = Text.PathUserDirectoryIndicator + setting.Value.Substring(userDirectory.Length + 1);
+				} else {
+					adjustedSettings[setting.Key] = setting.Value;
+				}
+			}
+			SaveInfoFile(configFilePath, adjustedSettings);
 		}
 
 		public static void SaveInfoFile(string path, Dictionary<string, string> settings) {
 			string fileText = string.Empty;
 			foreach (var setting in settings) {
-				fileText += String.Format("{0}={1}{2}", setting.Key, setting.Value, Environment.NewLine);
+				fileText += string.Format("{0}={1}{2}", setting.Key, setting.Value, Environment.NewLine);
 			}
 			File.WriteAllText(path, fileText);
 		}
@@ -391,7 +384,20 @@ namespace CarrionManagerConsole
 			Init();
 
 			while (!quit) {
+				//try {
 				currentWindow.Show();
+				/*} catch (Exception e) {
+					quit = true;
+					GUI.Reset();
+					Console.BackgroundColor = MenuColor.ErrorBG;
+					Console.ForegroundColor = MenuColor.ErrorFG;
+					Console.WriteLine(Text.UnexpectedErrorOccured);
+					Console.WriteLine(e.Message);
+					Console.WriteLine(e.StackTrace);
+					Console.WriteLine();
+					Console.WriteLine(Text.PressAnyKeyToQuit);
+					Console.ReadKey();
+				}*/
 			}
 			Console.SetCursorPosition(0, 0);
 			Console.BackgroundColor = ConsoleColor.Black;

@@ -15,8 +15,9 @@ namespace CarrionManagerConsole
 				return false;
 			}
 			var settingValue = settings[settingKey];
-			if (conversionTable.ContainsKey(settingValue)) {
-				return conversionTable[settingValue];
+			var lowerValue = settingValue.ToLower();
+			if (conversionTable.ContainsKey(lowerValue)) {
+				return conversionTable[lowerValue];
 			} else {
 				WriteInvalidValue(settingKey, settingValue, DictionaryKeysToStringArray(conversionTable));
 				throw new Exception(Text.SettingsInvalid);
@@ -104,6 +105,7 @@ namespace CarrionManagerConsole
 				[Text.ConfigAppDataPath] = Text.ConfigAppDataPathDescription,
 				[Text.ConfigManageSaves] = Text.ConfigManageSavesDescription,
 				[Text.ConfigZippedMapsPath] = Text.ConfigZippedMapsPathDescription,
+				[Text.ConfigMappingTools] = Text.ConfigMappingToolsDescription,
 			};
 			ConversionTable.GameLaunchMethod = new Dictionary<string, Properties.GameLaunchMethod>() {
 				[Text.ConfigLaunchMethodDirectly] = Properties.GameLaunchMethod.Directly,
@@ -113,7 +115,6 @@ namespace CarrionManagerConsole
 				[Text.True] = true,
 				[Text.False] = false,
 			};
-
 		}
 
 		public static void WriteAllSettingDescriptions() {

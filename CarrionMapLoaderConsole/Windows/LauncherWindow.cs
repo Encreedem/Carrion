@@ -9,6 +9,7 @@ namespace CarrionManagerConsole
 	{
 		public LauncherWindow() : base(Text.LauncherWindowTitle, MenuColor.LauncherWindowTitleBG, MenuColor.LauncherWindowTitleFG) {
 			LaunchableMapsList = Menu.AddListBox(0, Text.MapInstallerInstalledMapsHeader, true);
+			LaunchableMapsList.SelectionChanged += MapSelectionChanged;
 			DetailsTextBox = Menu.AddTextBox(1, null);
 			StartupLevelList = new GUI.ListBox(DetailsTextBox.Left, DetailsTextBox.Top, DetailsTextBox.Width, DetailsTextBox.Height, MenuColor.ContentBG, MenuColor.ContentFG, true);
 		}
@@ -44,11 +45,20 @@ namespace CarrionManagerConsole
 			Process.Start(info);
 		}
 
+		public void MapSelectionChanged(object sender, GUI.SelectionChangedEventArgs e) {
+			if (e.SelectedItemIndex < 1) {
+				DetailsTextBox.ClearContent();
+				return;
+			}
+			var selectedMap = Program.installedMaps[e.SelectedItemIndex - 1];
+			DetailsTextBox.WriteLongMapInfo(selectedMap);
+		}
+
 		public override void PreShow() {
 			var launchableMaps = new string[Program.installedMaps.Count + 1];
 			launchableMaps[0] = Text.MainGame;
 			Program.MapListToStringArray(Program.installedMaps).CopyTo(launchableMaps, 1);
-			LaunchableMapsList.SetContent(launchableMaps);
+			LaunchableMapsList.SetItems(launchableMaps);
 		}
 
 		public override void Selected(GUI.Selection selection) {
@@ -56,22 +66,22 @@ namespace CarrionManagerConsole
 				return;
 			}
 			LogTextBox.ClearContent();
-			var map = Program.mapInstallerWindow.FindInstalledMap(selection.Text);
+			Map map = Program.mapInstallerWindow.FindInstalledMap(selection.Text);
 			string mapName;
 			if (selection.RowIndex == 0) {
 				mapName = Text.MainGame;
 			} else {
 				mapName = map.Name;
 			}
-			var options = new GUI.SelectionPrompt.Options() { cancel = true };
+			var options = new GUI.SelectionPrompt.Options() { AllowCancel = true };
 			if (selection.RowIndex == 0) { // main map
-				options.disabledItems.Add(2); // Disable "Set Startup Level"
+				options.DisabledItems.Add(2); // Disable "Set Startup Level"
 			} else {
 				if (map.StartupLevel == null) {
-					options.disabledItems.Add(1); // Disable "New Game"
+					options.DisabledItems.Add(1); // Disable "New Game"
 				}
 				if (!Program.saveManagerWindow.MapHasSave(map)) {
-					options.disabledItems.Add(0); // Disable "Continue"
+					options.DisabledItems.Add(0); // Disable "Continue"
 				}
 			}
 			int response = SelectionPrompt.PromptSelection(
@@ -107,6 +117,7 @@ namespace CarrionManagerConsole
 					break;
 				case 2: // Set Startup Level
 					SetStartupLevel(map);
+					DetailsTextBox.WriteLongMapInfo(map);
 					break;
 			}
 		}
@@ -116,7 +127,7 @@ namespace CarrionManagerConsole
 			for (int i = 0; i < map.Levels.Length; ++i) {
 				levelsWithoutExtension[i] = Program.RemoveLevelExtension(map.Levels[i]);
 			}
-			StartupLevelList.SetContent(levelsWithoutExtension);
+			StartupLevelList.SetItems(levelsWithoutExtension);
 			StartupLevelList.Clear();
 			StartupLevelList.Draw();
 			StartupLevelList.Select(0);

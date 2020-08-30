@@ -23,12 +23,18 @@ namespace CarrionManagerConsole
 			NavigateLeft,
 			PageUp,
 			PageDown,
-			// Navigation
+			// Text Input
+			GoToStart,
+			GoToEnd,
+			DeleteCurrentCharacter,
+			DeletePreviousCharacter,
+			// Windows
 			ShowLauncher,
 			ShowNavigationWindow,
 			ShowMapInstaller,
 			ShowSaveManager,
 			ShowBackupsWindow,
+			ShowMappingToolsWindow,
 		}
 
 		public enum GameLaunchMethod
@@ -61,17 +67,23 @@ namespace CarrionManagerConsole
 			MinorHeaderBG = ConsoleColor.Gray, MinorHeaderFG = ConsoleColor.Black,
 			SeparatorBG = ConsoleColor.Gray, SeparatorFG = ConsoleColor.Black,
 			ContentBG = ConsoleColor.Black, ContentFG = ConsoleColor.White,
-			SelectedBG = ConsoleColor.DarkGray, SelectedText = ConsoleColor.White,
-			HighlightBG = ConsoleColor.Black, HighlightText = ConsoleColor.White,
+			SelectedBG = ConsoleColor.DarkGray, SelectedFG = ConsoleColor.White,
+			HighlightBG = ConsoleColor.Black, HighlightFG = ConsoleColor.White,
 			DisabledBG = ConsoleColor.Black, DisabledFG = ConsoleColor.DarkGray,
 			SelectedDisabledBG = ConsoleColor.White, SelectedDisabledFG = ConsoleColor.DarkGray,
 			ControlsBG = ConsoleColor.Black, ControlsFG = ConsoleColor.White,
 			ScrollBarBG = ConsoleColor.DarkGray, ScrollBarFG = ConsoleColor.White,
+			PreviewTextBG = ConsoleColor.Black, PreviewTextFG = ConsoleColor.Gray,
+			CheckBoxUncheckedBG = ConsoleColor.Black, CheckBoxUncheckedFG = ConsoleColor.White,
+			CheckBoxCheckedBG = ConsoleColor.DarkGreen, CheckBoxCheckedFG = ConsoleColor.White,
+			TextInputBG = ConsoleColor.Black, TextInputFG = ConsoleColor.White,
+
 			NavigationWindowTitleBG = ConsoleColor.DarkBlue, NavigationWindowTitleFG = ConsoleColor.White,
 			LauncherWindowTitleBG = ConsoleColor.DarkGreen, LauncherWindowTitleFG = ConsoleColor.White,
 			MapInstallerWindowTitleBG = ConsoleColor.DarkCyan, MapInstallerWindowTitleFG = ConsoleColor.White,
 			SaveMangerWindowTitleBG = ConsoleColor.DarkYellow, SaveMangerWindowTitleFG = ConsoleColor.White,
-			BackupsWindowTitleBG = ConsoleColor.DarkMagenta, BackupsWindowTitleFG = ConsoleColor.White;
+			BackupsWindowTitleBG = ConsoleColor.DarkMagenta, BackupsWindowTitleFG = ConsoleColor.White,
+			MappingToolsWindowBG = ConsoleColor.DarkBlue, MappingToolsWindowFG = ConsoleColor.White;
 	}
 
 	public class Text
@@ -96,6 +108,14 @@ namespace CarrionManagerConsole
 			NewGame = "New Game",
 			MainGame = "Main Game",
 			Unknown = "Unknown",
+			MapName = "Map Name",
+			Verify = "Verify",
+
+			// CheckBox
+			CheckBoxLeftSybmol = "[",
+			CheckBoxRightSymbol = "]",
+			CheckBoxChecked = "X",
+			CheckBoxUnchecked = " ",
 
 			// Errors
 			PressAnyKeyToContinue = "Press any key to continue...",
@@ -127,9 +147,9 @@ namespace CarrionManagerConsole
 			MapHasIssuesIndicator = "[!] ",
 			ShowIssues = "Show Issues",
 			SoManyMoreIssues = "[!] {0} more issues...",
-			MapIssueNoLevelsFolder = "Map doesn't contain \"Levels\" folder!",
-			MapIssueNoScriptsFolder = "Map doesn't contain \"Scripts\" folder!",
 			StartupLevelInvalid = "Startup Level \"{0}\" is invalid!",
+			MapContainsNoLevels = "Map contains no levels!",
+			MapContainsNoScripts = "Map contains no scripts!",
 
 			// Window Titles
 			NavigationWindowTitle = "Navigation Window",
@@ -138,6 +158,7 @@ namespace CarrionManagerConsole
 			MapInstallerWindowTitle = "Map Installer",
 			SaveManagerWindowTitle = "Save File Manager",
 			BackupsWindowTitle = "Backups",
+			MappingToolsWindowTitle = "Mapping Tools",
 
 			// Map Installer Window
 			MapInstallerInstalledMapsHeader = "Installed Maps",
@@ -151,6 +172,17 @@ namespace CarrionManagerConsole
 			SaveManagerWindowAutoBackupStatus = "Auto-backup & -load saves:",
 			DisabledManageSaves = "Disabled Auto-backup & -loading of save files.",
 			EnabledManageSaves = "Enabled Auto-backup & -loading of save files.",
+
+			// Mapping Tools Window
+			ShowOnlyWipMaps = "Only show WIP maps",
+			MappingToolsAddMap = "Add Map...",
+			MappingToolsCommandEditMapInfo = "Edit Map Info",
+			MappingToolsCommandEditLevels = "Edit Levels",
+			MappingToolsCommandAddNewLevel = "Add New Level",
+			MappingToolsCommandAssignLevels = "Assign Existing Levels",
+
+			// Info File
+			InfoFileNewLine = "_",
 
 			// Save Info File
 			SaveInfoMapName = "MapName",
@@ -169,10 +201,12 @@ namespace CarrionManagerConsole
 			MapInfoFileShortDescription = "ShortDescription",
 			MapInfoLongDescription = "Description: ",
 			MapInfoFileLongDescription = "LongDescription",
-			MapInfoNoDescription = "",
+			MapInfoNoDescription = "-",
 			MapInfoStartupLevel = "Startup Level: ",
 			MapInfoFileStartupLevel = "StartupLevel",
 			MapInfoNoStartupLevel = "-not set-",
+			MapInfoIsWIP = "Is WIP: ",
+			MapInfoFileIsWIP = "IsWIP",
 
 			//Settings
 			True = "true",
@@ -187,6 +221,7 @@ namespace CarrionManagerConsole
 			ConfigAppDataPath = "AppDataPath",
 			ConfigZippedMapsPath = "ZippedMapsPath",
 			ConfigManageSaves = "ManageSaves",
+			ConfigMappingTools = "MappingTools",
 			ConfigLaunchMethodDescription = "LaunchMethod:   If Carrion is installed via steam, enter \"Steam\", otherwise \"Directly\".",
 			ConfigSteamPathDescription = "SteamPath:      The full path to steam.exe",
 			ConfigGamePathDescription = "GamePath:       The full path to the folder containing carrion.exe (i.e. where Carrion is installed)",
@@ -194,6 +229,7 @@ namespace CarrionManagerConsole
 			ConfigCustomMapsPathDescription = "CustomMapsPath: The full path to the folder containing all your extracted custom maps",
 			ConfigAppDataPathDescription = "AppDataPath:    The full path to the folder containing Carrion's saves folder and settings.json",
 			ConfigZippedMapsPathDescription = "ZippedMapsPath: The full path to the folder where this program will look for zipped maps.",
+			ConfigMappingToolsDescription = "MappingTools:   Whether to display the Mapping Tools window (only needed by mappers).",
 			ConfigManageSavesDescription = "ManageSaves:    Whether saves should automatically be backed up and loaded when you launch a map.",
 			ConfigInvalidValue = "ERROR: Setting \"{0}\" has invalid value \"{1}\"!",
 			ConfigInvalidDirectoryPath = "ERROR: Setting \"{0}\": Path is not a valid directory or does not exist:\n{1}",
@@ -208,7 +244,7 @@ namespace CarrionManagerConsole
 			PathUserDirectoryIndicator = @"[user]\",
 
 			// Controls
-			DefaultControls = "Arrow Keys/PgUp/PgDown: Navigate    Enter/Space: Confirm    Escape: Back/Cancel    1-9: Switch Window",
+			DefaultControls = "Arrow Keys/PgUp/PgDown: Navigate    Enter/Space: Confirm    Escape/Num0: Back/Cancel    1-9: Switch Window",
 			DefaultControlsShort = "Arrow Keys: Navigate   Enter: Confirm   Escape: Back/Cancel   1-9: Switch Window";
 	}
 }

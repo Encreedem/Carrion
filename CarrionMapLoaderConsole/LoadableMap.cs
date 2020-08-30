@@ -18,8 +18,9 @@ namespace CarrionManagerConsole
 			string longDescription,
 			string[] levels,
 			string[] scripts,
+			bool isWIP,
 			string path) :
-			base(name, author, version, shortDescription, longDescription, levels, scripts) {
+			base(name, author, version, shortDescription, longDescription, levels, scripts, isWIP) {
 			MapPath = path;
 		}
 
@@ -43,7 +44,6 @@ namespace CarrionManagerConsole
 				}
 			} else {
 				Levels = new string[0];
-				Issues.Add(Text.MapIssueNoLevelsFolder);
 			}
 
 			string scriptFolderPath = Path.Combine(folderPath, Program.ScriptFolderName);
@@ -55,7 +55,6 @@ namespace CarrionManagerConsole
 				}
 			} else {
 				Scripts = new string[0];
-				Issues.Add(Text.MapIssueNoScriptsFolder);
 			}
 
 			LoadMapInfo();
@@ -69,8 +68,9 @@ namespace CarrionManagerConsole
 			ShortDescription = null;
 			LongDescription = null;
 			StartupLevel = null;
+			IsWIP = false;
 			if (File.Exists(mapInfoPath)) {
-				var mapInfo = Program.ReadInfoFile(mapInfoPath);
+				Dictionary<string, string> mapInfo = Program.ReadInfoFile(mapInfoPath, new List<string>() { Text.MapInfoFileLongDescription });
 				if (mapInfo.ContainsKey(Text.MapInfoFileMapName)) {
 					Name = mapInfo[Text.MapInfoFileMapName];
 				}
@@ -88,6 +88,9 @@ namespace CarrionManagerConsole
 				}
 				if (mapInfo.ContainsKey(Text.MapInfoFileStartupLevel)) {
 					StartupLevel = mapInfo[Text.MapInfoFileStartupLevel];
+				}
+				if (mapInfo.ContainsKey(Text.MapInfoFileIsWIP)) {
+					IsWIP = Setting.Convert(mapInfo, Text.MapInfoFileIsWIP, Setting.ConversionTable.TrueFalse);
 				}
 			}
 		}

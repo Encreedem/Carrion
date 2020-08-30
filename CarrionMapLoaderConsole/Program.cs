@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using Newtonsoft.Json;
 using System.Text.RegularExpressions;
+using CarrionManagerConsole.Windows;
 
 namespace CarrionManagerConsole
 {
@@ -12,32 +13,30 @@ namespace CarrionManagerConsole
 		 * Author: Encreedem
 		 * 
 		 * ### TODO ###
-		 * Backup files before overwriting them
-		 * Restore files after uninstalling a map
+		 * Defensive programming when handling files
+		 * Verify before overwriting backups
 		 * Show how to prepare custom maps: Add a folder + map to this program's root folder.
 		 * Check whether GOG needs a custom way to launch Carrion
 		 * Check whether other platforms exist for Carrion
 		 * Logger
+		 * "WIP" tag for levels that shouldn't be uninstalled.
+		 * Add a proper Readme.txt.
 		 * 
 		 * ### To consider ###
-		 * --- Windows ---
-		 * Setup
-		 * Backup Maps/other content files
-		 * Settings
+		 * Setup Wizard/Extractor
+		 * Settings Window
 		 * Map Extractor (maybe with File Explorer)
 		 * 
 		 * ### Mapping Tools ###
 		 * Add installed map manually
+		 * - Would require checkbox + container for checkboxes
 		 * Window to configure map info and add/remove levels
 		 * Verify map
 		 * Export map
-		 * 
-		 * --- Settings ---
-		 * Override Prompt: Confirm before files would be overridden.
 		 * */
 		public const string
 			ProgramName = "Carrion Manager Console",
-			ProgramVersion = "v0.2 alpha";
+			ProgramVersion = "v0.2 Alpha";
 
 		public const int
 			MinConsoleWidth = 120,
@@ -59,7 +58,7 @@ namespace CarrionManagerConsole
 			SteamRegistryKey = "InstallPath",
 			GameExeName = "Carrion.exe",
 			ConfigFileName = "CarrionManagerConsole.cfg",
-			InstalledMapsFileName = "InstalledMaps.txt",
+			InstalledMapsFileName = "InstalledMaps.json",
 			MapInfoFileName = "MapInfo.txt";
 		public const string
 			LaunchSteamGameArgument = "-applaunch 953490",
@@ -86,12 +85,14 @@ namespace CarrionManagerConsole
 			zippedMapsFolder;
 		#endregion
 
-		public static Dictionary<ConsoleKey, Properties.Command> keybindings;
+		public static Dictionary<ConsoleKey, Properties.Command> navigationKeybindings;
+		public static Dictionary<ConsoleKey, Properties.Command> textInputKeybindings;
 		public static List<LoadableMap> availableMaps;
 		public static List<Map> installedMaps;
 		public static bool quit;
 		public static bool manageSaves;
 		public static Properties.GameLaunchMethod gameLaunchMethod;
+		public static bool mappingToolsEnabled;
 
 		// Windows
 		public static string[] windowNames;
@@ -101,6 +102,7 @@ namespace CarrionManagerConsole
 		public static MapInstallerWindow mapInstallerWindow;
 		public static SaveManagerWindow saveManagerWindow;
 		public static BackupsWindow backupsWindow;
+		public static MappingToolsWindow mappingToolsWindow;
 
 		public static string GameLaunchMethodToString(Properties.GameLaunchMethod gameLaunchMethod) {
 			return gameLaunchMethod switch
@@ -114,12 +116,7 @@ namespace CarrionManagerConsole
 		private static void Init() {
 			try {
 				Console.WriteLine("Initializing...");
-				if (Console.WindowWidth <= MinConsoleWidth) {
-					Console.WindowWidth = MinConsoleWidth;
-				}
-				if (Console.WindowHeight <= MinConsoleHeight) {
-					Console.WindowHeight = MinConsoleHeight;
-				}
+				InitConsole();
 				InitFields();
 				LoadDefaultSettings();
 				LoadSettings();
@@ -139,12 +136,20 @@ namespace CarrionManagerConsole
 			}
 		}
 
-		private static void InitFields() {
-			quit = false;
+		private static void InitConsole() {
+			if (Console.WindowWidth <= MinConsoleWidth) {
+				Console.WindowWidth = MinConsoleWidth;
+			}
+			if (Console.WindowHeight <= MinConsoleHeight) {
+				Console.WindowHeight = MinConsoleHeight;
+			}
 			Console.CursorVisible = false;
 			Console.Title = string.Format("{0} {1}", ProgramName, ProgramVersion);
-			Console.Title = "Carrion Manager Console v0.1 Alpha";
-			keybindings = new Dictionary<ConsoleKey, Properties.Command> {
+		}
+
+		private static void InitFields() {
+			quit = false;
+			navigationKeybindings = new Dictionary<ConsoleKey, Properties.Command> {
 				[ConsoleKey.UpArrow] = Properties.Command.NavigateUp,
 				[ConsoleKey.RightArrow] = Properties.Command.NavigateRight,
 				[ConsoleKey.DownArrow] = Properties.Command.NavigateDown,
@@ -154,6 +159,7 @@ namespace CarrionManagerConsole
 				[ConsoleKey.Enter] = Properties.Command.Confirm,
 				[ConsoleKey.Spacebar] = Properties.Command.Confirm,
 				[ConsoleKey.Escape] = Properties.Command.Cancel,
+				[ConsoleKey.NumPad0] = Properties.Command.Cancel,
 				[ConsoleKey.D1] = Properties.Command.ShowLauncher,
 				[ConsoleKey.NumPad1] = Properties.Command.ShowLauncher,
 				[ConsoleKey.D2] = Properties.Command.ShowMapInstaller,
@@ -162,23 +168,48 @@ namespace CarrionManagerConsole
 				[ConsoleKey.NumPad3] = Properties.Command.ShowSaveManager,
 				[ConsoleKey.D4] = Properties.Command.ShowBackupsWindow,
 				[ConsoleKey.NumPad4] = Properties.Command.ShowBackupsWindow,
+				[ConsoleKey.D5] = Properties.Command.ShowMappingToolsWindow,
+				[ConsoleKey.NumPad5] = Properties.Command.ShowMappingToolsWindow,
+			};
+			textInputKeybindings = new Dictionary<ConsoleKey, Properties.Command>() {
+				[ConsoleKey.Escape] = Properties.Command.Cancel,
+				[ConsoleKey.Enter] = Properties.Command.Confirm,
+				[ConsoleKey.LeftArrow] = Properties.Command.NavigateLeft,
+				[ConsoleKey.RightArrow] = Properties.Command.NavigateRight,
+				[ConsoleKey.UpArrow] = Properties.Command.NavigateUp,
+				[ConsoleKey.DownArrow] = Properties.Command.NavigateDown,
+				[ConsoleKey.Home] = Properties.Command.GoToStart,
+				[ConsoleKey.End] = Properties.Command.GoToEnd,
+				[ConsoleKey.Delete] = Properties.Command.DeleteCurrentCharacter,
+				[ConsoleKey.Backspace] = Properties.Command.DeletePreviousCharacter,
 			};
 		}
 
 		private static void InitWindows() {
 			Console.WriteLine("Initializing Windows...");
-			windowNames = new string[] {
-				Text.LauncherWindowTitle,
-				Text.MapInstallerWindowTitle,
-				Text.SaveManagerWindowTitle,
-				Text.BackupsWindowTitle,
-			};
+			if (mappingToolsEnabled) {
+				windowNames = new string[] {
+					Text.LauncherWindowTitle,
+					Text.MapInstallerWindowTitle,
+					Text.SaveManagerWindowTitle,
+					Text.BackupsWindowTitle,
+					Text.MappingToolsWindowTitle,
+				};
+			} else {
+				windowNames = new string[] {
+					Text.LauncherWindowTitle,
+					Text.MapInstallerWindowTitle,
+					Text.SaveManagerWindowTitle,
+					Text.BackupsWindowTitle,
+				};
+			}
 
 			navigationWindow = new NavigationWindow();
 			launcherWindow = new LauncherWindow();
 			mapInstallerWindow = new MapInstallerWindow();
 			saveManagerWindow = new SaveManagerWindow();
 			backupsWindow = new BackupsWindow();
+			mappingToolsWindow = new MappingToolsWindow();
 
 			currentWindow = navigationWindow;
 		}
@@ -201,6 +232,7 @@ namespace CarrionManagerConsole
 			customMapsPath = string.Format(".{0}Custom Maps{0}", Path.DirectorySeparatorChar);
 			appDataPath = string.Format("C:{0}Users{0}your_username{0}AppData{0}LocalLow{0}Phobia{0}Carrion{0}_steam_xxxxxxxxxxxxxxxxx{0}", Path.DirectorySeparatorChar);
 			zippedMapsFolder = string.Format("[user]{0}Downloads", Path.DirectorySeparatorChar);
+			mappingToolsEnabled = false;
 			manageSaves = true;
 		}
 
@@ -254,6 +286,7 @@ namespace CarrionManagerConsole
 			appDataPath = Setting.GetDirectoryPath(settings, Text.ConfigAppDataPath);
 			manageSaves = Setting.Convert(settings, Text.ConfigManageSaves, Setting.ConversionTable.TrueFalse);
 			zippedMapsFolder = Setting.GetDirectoryPath(settings, Text.ConfigZippedMapsPath);
+			mappingToolsEnabled = Setting.Convert(settings, Text.ConfigMappingTools, Setting.ConversionTable.TrueFalse);
 
 			if (Setting.MissingSettings.Count > 0) {
 				Console.WriteLine(Text.OneOrMoreSettingsAreMissing);
@@ -285,7 +318,12 @@ namespace CarrionManagerConsole
 		public static string[] MapListToStringArray(List<Map> maps) {
 			var ret = new string[maps.Count];
 			for (int i = 0; i < ret.Length; ++i) {
-				ret[i] = maps[i].ToString();
+				var map = maps[i];
+				if (map.IsValid) {
+					ret[i] = map.Name;
+				} else {
+					ret[i] = Text.MapHasIssuesIndicator + map.Name;
+				}
 			}
 			return ret;
 		}
@@ -295,9 +333,9 @@ namespace CarrionManagerConsole
 			for (int i = 0; i < ret.Length; ++i) {
 				var map = maps[i];
 				if (map.Issues.Count > 0) {
-					ret[i] = Text.MapHasIssuesIndicator + map.ToString();
+					ret[i] = Text.MapHasIssuesIndicator + map.Name;
 				} else {
-					ret[i] = map.ToString();
+					ret[i] = map.Name;
 				}
 			}
 			return ret;
@@ -323,15 +361,27 @@ namespace CarrionManagerConsole
 			return ret;
 		}
 
-		public static Dictionary<string, string> ReadInfoFile(string path) {
+		public static Dictionary<string, string> ReadInfoFile(string path, List<string> allowNewLine) {
 			var ret = new Dictionary<string, string>();
 			string fileText = File.ReadAllText(path);
 			fileText = fileText.Replace("\r", "");
-			Regex regex = new Regex(@"^(.+?)[ ]*=[ ]*""?(.+?)""?[ ]*$", RegexOptions.Multiline);
+			Regex regex = new Regex(@"^(.+?)[ ]*=[ ]*""?(.+?)""?[ ]*$|^" + Text.InfoFileNewLine + "(.+)$", RegexOptions.Multiline);
+			var lastKey = string.Empty;
 			foreach (Match match in regex.Matches(fileText)) {
-				ret.Add(match.Groups[1].Value, match.Groups[2].Value);
+				if (match.Groups[0].Value.StartsWith(Text.InfoFileNewLine)) {
+					if (allowNewLine.Contains(lastKey)) {
+						ret[lastKey] += '\n' + match.Groups[3].Value;
+					}
+				} else {
+					lastKey = match.Groups[1].Value;
+					ret.Add(lastKey, match.Groups[2].Value);
+				}
 			}
 			return ret;
+		}
+
+		public static Dictionary<string, string> ReadInfoFile(string path) {
+			return ReadInfoFile(path, new List<string>());
 		}
 
 		public static string RemoveLevelExtension(string levelName) {
@@ -342,7 +392,7 @@ namespace CarrionManagerConsole
 		}
 
 		public static void SaveInstalledMaps() {
-			string json = JsonConvert.SerializeObject(installedMaps.ToArray());
+			string json = JsonConvert.SerializeObject(installedMaps.ToArray(), Formatting.Indented);
 			File.WriteAllText(installedMapsPath, json);
 		}
 
@@ -356,6 +406,7 @@ namespace CarrionManagerConsole
 				[Text.ConfigAppDataPath] = appDataPath,
 				[Text.ConfigZippedMapsPath] = zippedMapsFolder,
 				[Text.ConfigManageSaves] = manageSaves ? Text.True : Text.False,
+				[Text.ConfigMappingTools] = mappingToolsEnabled ? Text.True : Text.False,
 			};
 			var adjustedSettings = new Dictionary<string, string>();
 			var currentDirectory = Directory.GetCurrentDirectory();
@@ -375,9 +426,51 @@ namespace CarrionManagerConsole
 		public static void SaveInfoFile(string path, Dictionary<string, string> settings) {
 			string fileText = string.Empty;
 			foreach (var setting in settings) {
+				var value = setting.Value.Replace("\n", Environment.NewLine + Text.InfoFileNewLine);
 				fileText += string.Format("{0}={1}{2}", setting.Key, setting.Value, Environment.NewLine);
 			}
 			File.WriteAllText(path, fileText);
+		}
+
+		public static List<string> SplitIntoLines(string text, int maxWidth) {
+			List<string> ret = new List<string>();
+			string[] lines = text.Split("\n");
+			var regex = new Regex(@"(\S+)\s*");
+			foreach (var line in lines) {
+				string currentLine = string.Empty;
+				foreach (Match match in regex.Matches(line)) {
+					string currentWord = match.Groups[1].Value;
+
+					while (currentWord != string.Empty) {
+						if (currentLine == string.Empty) {
+							if (currentWord.Length < maxWidth) {
+								currentLine = currentWord;
+								currentWord = string.Empty;
+							} else if (currentWord.Length == maxWidth) {
+								ret.Add(currentWord);
+								currentWord = string.Empty;
+							} else {
+								ret.Add(currentWord.Substring(0, maxWidth));
+								currentWord = currentWord.Substring(maxWidth + 1);
+							}
+						} else {
+							int remainingCharacters = maxWidth - currentLine.Length;
+							if (currentWord.Length + 1 <= remainingCharacters) {
+								currentLine += " " + currentWord;
+								currentWord = string.Empty;
+							} else {
+								ret.Add(currentLine);
+								currentLine = string.Empty;
+							}
+						}
+					}
+				}
+				if (currentLine != string.Empty) {
+					ret.Add(currentLine);
+				}
+			}
+
+			return ret;
 		}
 
 		static void Main() {

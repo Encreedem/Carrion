@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Drawing;
 using System.Globalization;
 using System.Linq;
@@ -96,6 +97,30 @@ namespace CarrionManagerConsole
 				Clear();
 			}
 		}
+		public class CheckBox : SelectableText
+		{
+			public CheckBox(int left, int top, int width, string text, bool isChecked) : base(left, top, width, text) {
+				Checked = isChecked;
+			}
+
+			public CheckBox(int left, int top, string text, bool isChecked) : base(left, top, text) {
+				Checked = isChecked;
+			}
+
+			public bool Checked { get; set; }
+
+			public override void Draw() {
+				if (!Visible) {
+					return;
+				}
+				Write(Left, Top, LeftSymbol + Text.CheckBoxLeftSybmol, Background, Foreground);
+				Console.BackgroundColor = Checked ? MenuColor.CheckBoxCheckedBG : MenuColor.CheckBoxUncheckedBG;
+				Console.ForegroundColor = Checked ? MenuColor.CheckBoxCheckedFG : MenuColor.CheckBoxUncheckedFG;
+				Console.Write(Checked ? Text.CheckBoxChecked : Text.CheckBoxUnchecked);
+				Write(Left + 3, Top, FixedWidth(Text.CheckBoxRightSymbol + " " + Value, Width - 4), Background, Foreground);
+				Console.Write(RightSymbol);
+			}
+		}
 		public class ColumnView : Navigable
 		{
 			private int currentColumn;
@@ -105,9 +130,9 @@ namespace CarrionManagerConsole
 				base(left, top, width, height, background, foreground) {
 				ColumnCount = columnCount;
 				Headers = new Label[columnCount];
-				Items = new IDrawable[columnCount];
-				Navigables = new INavigable[columnCount];
-				SelectableTextContainers = new SelectableTextContainer[columnCount];
+				Items = new Drawable[columnCount];
+				Navigables = new Navigable[columnCount];
+				SelectableTextContainers = new SelectableCollection[columnCount];
 				currentColumn = -1;
 				InitDimensions();
 			}
@@ -131,13 +156,13 @@ namespace CarrionManagerConsole
 			public override int CurrentColumn => currentColumn;
 			public bool CurrentColumnValid => CurrentColumn >= 0 && CurrentColumn < Items.Length;
 			public override int CurrentRow => SelectionValid() ? CurrentNavigable.CurrentRow : -1;
-			public INavigable CurrentNavigable => CurrentColumnValid ? Navigables[CurrentColumn] : null;
-			public SelectableTextContainer CurrentSelectableTextContainer => SelectionValid() ? SelectableTextContainers[CurrentColumn] : null;
+			public Navigable CurrentNavigable => CurrentColumnValid ? Navigables[CurrentColumn] : null;
+			public SelectableCollection CurrentSelectableTextContainer => SelectionValid() ? SelectableTextContainers[CurrentColumn] : null;
 			public Label[] Headers { get; set; }
 			public override bool IsActive => SelectionValid();
-			public IDrawable[] Items { get; set; }
-			public INavigable[] Navigables { get; set; }
-			public SelectableTextContainer[] SelectableTextContainers { get; set; }
+			public Drawable[] Items { get; set; }
+			public Navigable[] Navigables { get; set; }
+			public SelectableCollection[] SelectableTextContainers { get; set; }
 
 			public ListBox AddListBox(int column, string title, bool forceShowScrollBar) {
 				SetHeader(column, title);
@@ -184,7 +209,7 @@ namespace CarrionManagerConsole
 				return textBox;
 			}
 
-			public void AddNavigable(int column, INavigable navigable) {
+			public void AddNavigable(int column, Navigable navigable) {
 				Items[column] = navigable;
 				Navigables[column] = navigable;
 			}
@@ -325,7 +350,7 @@ namespace CarrionManagerConsole
 				}
 			}
 		}
-		public abstract class Drawable : IDrawable
+		public abstract class Drawable
 		{
 			public Drawable(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground) {
 				Left = left;
@@ -342,8 +367,8 @@ namespace CarrionManagerConsole
 			public int Right => Left + Width - 1;
 			public int Width { get; set; }
 			public int Height { get; set; }
-			public ConsoleColor Background { get; set; }
-			public ConsoleColor Foreground { get; set; }
+			public virtual ConsoleColor Background { get; set; }
+			public virtual ConsoleColor Foreground { get; set; }
 
 			public void Clear() {
 				DrawRectangle(Left, Top, Width, Height, Background, Foreground);
@@ -353,7 +378,7 @@ namespace CarrionManagerConsole
 		}
 		public class Input
 		{
-			public Input(INavigable list, int columnIndex, int rowIndex, Properties.Command command) {
+			public Input(Navigable list, int columnIndex, int rowIndex, Properties.Command command) {
 				List = list;
 				ColumnIndex = columnIndex;
 				RowIndex = rowIndex;
@@ -363,7 +388,7 @@ namespace CarrionManagerConsole
 			public int RowIndex { get; set; }
 			public int ColumnIndex { get; set; }
 			public Properties.Command Command { get; set; }
-			public INavigable List { get; set; }
+			public Navigable List { get; set; }
 		}
 		public class Label : Drawable
 		{
@@ -385,18 +410,21 @@ namespace CarrionManagerConsole
 				Write(Left, Top, fixedText, Background, Foreground);
 			}
 		}
-		public class ListBox : SelectableTextContainer
+		public class ListBox : SelectableCollection
 		{
 			public int scroll;
-			private ScrollBar scrollBar;
+			private readonly ScrollBar scrollBar;
 
 			public ListBox(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground, bool forceShowScrollBar) :
 				base(left, top, width, height, background, foreground, Properties.Alignment.Vertical) {
-				ForceShowScrollBar = forceShowScrollBar;
-				Init();
+				scrollBar = new ScrollBar(Right, Top, 1, Height, MenuColor.ScrollBarBG, MenuColor.ScrollBarFG) {
+					MaxScroll = Items.Count - Height,
+					Scroll = scroll,
+					ForceShow = forceShowScrollBar,
+				};
 			}
 
-			public bool ForceShowScrollBar { get; set; }
+			public int NextItemTop => Items.Count == 0 ? Top : Items[^1].Top + 1;
 			public int VisibleItemCount => (Items.Count <= Height) ? Items.Count : Height;
 			public List<SelectableText> VisibleItems {
 				get {
@@ -411,6 +439,42 @@ namespace CarrionManagerConsole
 				}
 			}
 
+			public CheckBox AddCheckBox(string text, bool isChecked) {
+				int top = NextItemTop;
+				var checkBox = new CheckBox(Left, top, Width - 1, text, isChecked);
+				Items.Add(checkBox);
+				SetItemVisibility(checkBox);
+				return checkBox;
+			}
+
+			public void AddItem(string text) {
+				var item = new SelectableText(Left, NextItemTop, Width - 1, text);
+				Items.Add(item);
+				SetItemVisibility(item);
+			}
+
+			public void AddItems(string[] items) {
+				int top = NextItemTop;
+				int textWidth = Width - 1;
+				for (int i = 0; i < items.Length; ++i) {
+					var item = new SelectableText(Left, top + i, textWidth, items[i]);
+					Items.Add(item);
+					SetItemVisibility(item);
+				}
+				RefreshContentInfo();
+			}
+
+			public void AddMaps(List<Map> maps) {
+				int top = NextItemTop;
+				int textWidth = Width - 1;
+				for (int i = 0; i < maps.Count; ++i) {
+					var item = new SelectableMap(Left, top + i, textWidth, maps[i]);
+					Items.Add(item);
+					SetItemVisibility(item);
+				}
+				RefreshContentInfo();
+			}
+
 			public override void Draw() {
 				foreach (var item in VisibleItems) {
 					item.Draw();
@@ -418,16 +482,9 @@ namespace CarrionManagerConsole
 				scrollBar.Draw();
 			}
 
-			public void Init() {
+			public override void Init() {
+				base.Init();
 				scroll = 0;
-			}
-
-			public void InitScrollBar() {
-				scrollBar = new ScrollBar(Right, Top, 1, Height, MenuColor.ScrollBarBG, MenuColor.ScrollBarFG) {
-					MaxScroll = Items.Count - Height,
-					Scroll = scroll,
-					ForceShow = ForceShowScrollBar,
-				};
 			}
 
 			public override void Navigate(int offset) {
@@ -468,53 +525,34 @@ namespace CarrionManagerConsole
 				}
 			}
 
+			public override void Select(int index) {
+				base.Select(index);
+				ScrollToSelectedItem();
+			}
+
 			public void SelectCurrentItem() {
 				Select(SelectedItemIndex);
 			}
 
-			public void SetContent(string[] content) {
-				InitItems();
-				Init();
-				int textWidth = Width - 1;
-				for (int i = 0; i < content.Length; ++i) {
-					var item = new SelectableText(Left, Top + i, textWidth, content[i]);
-					Items.Add(item);
-					SetItemVisibility(item);
-				}
-				InitScrollBar();
+			public override void SetItems(string[] content) {
+				Items.Clear();
+				AddItems(content);
 			}
 
 			public void SetItemVisibility(SelectableText item) {
 				item.Visible = (item.Top >= Top && item.Top < Top + Height);
 			}
+
+			private void RefreshContentInfo() {
+				scrollBar.MaxScroll = Items.Count - Height;
+			}
 		}
-		public abstract class Navigable : INavigable
+		public abstract class Navigable : Drawable
 		{
-			public Navigable(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground) {
-				Left = left;
-				Top = top;
-				Width = width;
-				Height = height;
-				Background = background;
-				Foreground = foreground;
+			public Navigable(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground) : base(left, top, width, height, background, foreground) {
+
 			}
 
-			#region IBox
-			public int Left { get; set; }
-			public int Top { get; set; }
-			public int Width { get; set; }
-			public int Height { get; set; }
-			public ConsoleColor Background { get; set; }
-			public ConsoleColor Foreground { get; set; }
-			public int Bottom => Top + Height - 1;
-			public int Right => Left + Width - 1;
-
-			public void Clear() {
-				DrawRectangle(Left, Top, Width, Height, Background, Foreground);
-			}
-			#endregion
-
-			#region INavigable
 			public abstract bool CanNavigate { get; }
 			public abstract bool CanNavigateDown { get; }
 			public abstract bool CanNavigateLeft { get; }
@@ -525,7 +563,7 @@ namespace CarrionManagerConsole
 			public abstract bool IsActive { get; }
 
 			public abstract void Deactivate();
-			public abstract void Draw();
+			public override abstract void Draw();
 			public abstract void NavigateDown();
 			public abstract void NavigateLeft();
 			public abstract void NavigateRight();
@@ -544,11 +582,11 @@ namespace CarrionManagerConsole
 
 				while (true) {
 					var input = Console.ReadKey(true).Key;
-					if (!Program.keybindings.ContainsKey(input)) {
+					if (!Program.navigationKeybindings.ContainsKey(input)) {
 						continue;
 					}
 
-					Properties.Command command = Program.keybindings[input];
+					Properties.Command command = Program.navigationKeybindings[input];
 					switch (command) {
 						case Properties.Command.NavigateUp:
 							if (CanNavigateUp) {
@@ -585,7 +623,6 @@ namespace CarrionManagerConsole
 					}
 				}
 			}
-			#endregion
 		}
 		public class ScrollBar : Drawable
 		{
@@ -650,30 +687,67 @@ namespace CarrionManagerConsole
 				scrollBarHeight = Math.Floor(Height / (Height + MaxScroll) * Height);
 			}
 		}
+		public class SelectableMap : SelectableText
+		{
+			public SelectableMap(int left, int top, Map map) : base(left, top, map.Name) {
+				Map = map;
+			}
+
+			public SelectableMap(int left, int top, int width, Map map) : base(left, top, width, map.Name) {
+				Map = map;
+			}
+
+			public Map Map { get; set; }
+		}
 		public class SelectableText : Drawable
 		{
 			public SelectableText(int left, int top, int width, string text) : base(left, top, width, 1, MenuColor.ContentBG, MenuColor.ContentFG) {
-				Left = left;
-				Top = top;
-				Text = text;
+				Value = text;
 				Enabled = true;
 				Visible = true;
 				SelectionStatus = Properties.SelectionStatus.None;
 			}
 
 			public SelectableText(int left, int top, string text) : base(left, top, text.Length + 2, 1, MenuColor.ContentBG, MenuColor.ContentFG) {
-				Left = left;
-				Top = top;
-				Text = text;
+				Value = text;
 				Enabled = true;
 				Visible = true;
 				SelectionStatus = Properties.SelectionStatus.None;
 			}
 
+			public override ConsoleColor Background => SelectionStatus switch
+			{
+				Properties.SelectionStatus.None => Enabled ? MenuColor.ContentBG : MenuColor.DisabledBG,
+				Properties.SelectionStatus.Selected => Enabled ? MenuColor.SelectedBG : MenuColor.SelectedDisabledBG,
+				Properties.SelectionStatus.Highlighted => Enabled ? MenuColor.HighlightBG : MenuColor.SelectedDisabledBG,
+				_ => Enabled ? MenuColor.ContentBG : MenuColor.DisabledBG,
+			};
+			public override ConsoleColor Foreground => SelectionStatus switch
+			{
+				Properties.SelectionStatus.None => Enabled ? MenuColor.ContentFG : MenuColor.DisabledFG,
+				Properties.SelectionStatus.Selected => Enabled ? MenuColor.SelectedFG : MenuColor.SelectedDisabledFG,
+				Properties.SelectionStatus.Highlighted => Enabled ? MenuColor.HighlightFG : MenuColor.SelectedDisabledFG,
+				_ => Enabled ? MenuColor.ContentFG : MenuColor.DisabledFG,
+			};
 			public bool Enabled { get; set; }
 			public Properties.SelectionStatus SelectionStatus { get; set; }
-			public string Text { get; set; }
+			public string Value { get; set; }
 			public bool Visible { get; set; }
+
+			protected string LeftSymbol => SelectionStatus switch
+			{
+				Properties.SelectionStatus.None => CarrionManagerConsole.Text.UnselectedLeftSymbol,
+				Properties.SelectionStatus.Selected => CarrionManagerConsole.Text.SelectedLeftSymbol,
+				Properties.SelectionStatus.Highlighted => CarrionManagerConsole.Text.HighlightedLeftSymbol,
+				_ => CarrionManagerConsole.Text.UnselectedLeftSymbol,
+			};
+			protected string RightSymbol => SelectionStatus switch
+			{
+				Properties.SelectionStatus.None => CarrionManagerConsole.Text.UnselectedRightSymbol,
+				Properties.SelectionStatus.Selected => CarrionManagerConsole.Text.SelectedRightSymbol,
+				Properties.SelectionStatus.Highlighted => CarrionManagerConsole.Text.HighlightedRightSymbol,
+				_ => CarrionManagerConsole.Text.UnselectedRightSymbol,
+			};
 
 			public void Deselect() {
 				SelectionStatus = Properties.SelectionStatus.None;
@@ -682,9 +756,7 @@ namespace CarrionManagerConsole
 
 			public override void Draw() {
 				if (Visible) {
-					Console.SetCursorPosition(Left, Top);
-					SetConsoleColor();
-					Console.Write(ToString());
+					Write(Left, Top, LeftSymbol + FixedWidth(Value, Width - 2) + RightSymbol, Background, Foreground);
 				}
 			}
 
@@ -697,64 +769,20 @@ namespace CarrionManagerConsole
 				SelectionStatus = Properties.SelectionStatus.Selected;
 				Draw();
 			}
-
-			public void SetConsoleColor() {
-				if (Enabled) {
-					switch (SelectionStatus) {
-						case Properties.SelectionStatus.None:
-							Console.BackgroundColor = MenuColor.ContentBG;
-							Console.ForegroundColor = MenuColor.ContentFG;
-							break;
-						case Properties.SelectionStatus.Selected:
-							Console.BackgroundColor = MenuColor.SelectedBG;
-							Console.ForegroundColor = MenuColor.SelectedText;
-							break;
-						case Properties.SelectionStatus.Highlighted:
-							Console.BackgroundColor = MenuColor.HighlightBG;
-							Console.ForegroundColor = MenuColor.HighlightText;
-							break;
-						default:
-							Console.BackgroundColor = MenuColor.ContentBG;
-							Console.ForegroundColor = MenuColor.ContentFG;
-							break;
-					}
-				} else {
-					if (SelectionStatus == Properties.SelectionStatus.Selected || SelectionStatus == Properties.SelectionStatus.Highlighted) {
-						Console.BackgroundColor = MenuColor.SelectedDisabledBG;
-						Console.ForegroundColor = MenuColor.SelectedDisabledFG;
-					} else {
-						Console.BackgroundColor = MenuColor.DisabledBG;
-						Console.ForegroundColor = MenuColor.DisabledFG;
-					}
-				}
-			}
-
-			public override string ToString() {
-				string fixedWidthText = FixedWidth(Text, Width - 2);
-				if (SelectionStatus == Properties.SelectionStatus.None) {
-					return CarrionManagerConsole.Text.UnselectedLeftSymbol + fixedWidthText + CarrionManagerConsole.Text.UnselectedRightSymbol;
-				} else if (SelectionStatus == Properties.SelectionStatus.Selected) {
-					return CarrionManagerConsole.Text.SelectedLeftSymbol + fixedWidthText + CarrionManagerConsole.Text.SelectedRightSymbol;
-				} else if (SelectionStatus == Properties.SelectionStatus.Highlighted) {
-					return CarrionManagerConsole.Text.HighlightedLeftSymbol + fixedWidthText + CarrionManagerConsole.Text.HighlightedRightSymbol;
-				} else {
-					throw new Exception(string.Format("Unsupported SelectionOption \"{0}\"", SelectionStatus.ToString()));
-				}
-			}
 		}
-		public abstract class SelectableTextContainer : Navigable
+		public abstract class SelectableCollection : Navigable
 		{
 			private Properties.Alignment alignment;
 			private bool canNavigateHorizontally;
 			private bool canNavigateVertically;
 
-			public SelectableTextContainer(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground, Properties.Alignment alignment) :
+			public SelectableCollection(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground, Properties.Alignment alignment) :
 				base(left, top, width, height, background, foreground) {
 				Alignment = alignment;
-				InitItems();
+				Init();
 			}
 
-			#region INavigable
+			#region Navigable
 			public override bool CanNavigate => !IsEmpty;
 			public override bool CanNavigateDown => canNavigateVertically;
 			public override bool CanNavigateLeft => canNavigateHorizontally;
@@ -789,6 +817,8 @@ namespace CarrionManagerConsole
 			}
 
 			public abstract override void Draw();
+
+			public abstract void SetItems(string[] content);
 
 			public override void NavigateDown() {
 				if (CanNavigateDown) {
@@ -855,7 +885,7 @@ namespace CarrionManagerConsole
 
 			#endregion
 
-			#region SelectableTextContainer
+			#region SelectableCollection
 			public Properties.Alignment Alignment {
 				get { return alignment; }
 				set {
@@ -886,7 +916,7 @@ namespace CarrionManagerConsole
 				SelectedItemIndex = -1;
 			}
 
-			public virtual void HandleSelectionChanged(SelectionChangedEventArgs e) {
+			public void OnSelectionChanged(SelectionChangedEventArgs e) {
 				SelectionChanged?.Invoke(this, e);
 			}
 
@@ -896,7 +926,7 @@ namespace CarrionManagerConsole
 				}
 			}
 
-			public void InitItems() {
+			public virtual void Init() {
 				SelectedItemIndex = 0;
 				Items = new List<SelectableText>();
 			}
@@ -912,7 +942,7 @@ namespace CarrionManagerConsole
 				return new Selection(this, CurrentColumn, CurrentRow, input.Command);
 			}
 
-			public void Select(int index) {
+			public virtual void Select(int index) {
 				if (IsEmpty) {
 					return;
 				}
@@ -928,16 +958,16 @@ namespace CarrionManagerConsole
 					SelectedItem = SelectedItem,
 					SelectedItemIndex = SelectedItemIndex,
 				};
-				HandleSelectionChanged(args);
+				OnSelectionChanged(args);
 			}
 
-			public void SelectFirstItem() {
+			public virtual void SelectFirstItem() {
 				if (!IsEmpty) {
 					Select(0);
 				}
 			}
 
-			public void SelectLastItem() {
+			public virtual void SelectLastItem() {
 				if (!IsEmpty) {
 					Select(Items.Count - 1);
 				}
@@ -946,7 +976,7 @@ namespace CarrionManagerConsole
 		}
 		public class Selection
 		{
-			public Selection(SelectableTextContainer list, int columnIndex, int rowIndex, Properties.Command command) {
+			public Selection(SelectableCollection list, int columnIndex, int rowIndex, Properties.Command command) {
 				List = list;
 				ColumnIndex = columnIndex;
 				RowIndex = rowIndex;
@@ -955,10 +985,10 @@ namespace CarrionManagerConsole
 
 			public Properties.Command Command { get; set; }
 			public int ColumnIndex { get; set; }
-			public SelectableTextContainer List { get; set; }
+			public SelectableCollection List { get; set; }
 			public int RowIndex { get; set; }
 			public SelectableText SelectedItem => List.Items[(List.Alignment == Properties.Alignment.Horizontal ? ColumnIndex : RowIndex)];
-			public string Text => SelectedItem.Text;
+			public string Text => SelectedItem.Value;
 		}
 		public class SelectionPrompt : Drawable
 		{
@@ -975,18 +1005,18 @@ namespace CarrionManagerConsole
 				for (int i = 0; i < selectableItems.Length; ++i) {
 					var item = selectableItems[i];
 					var selectableText = new SelectableText(textLeft, this.Top, item);
-					if (options.disabledItems.Contains(i)) {
+					if (options.DisabledItems.Contains(i)) {
 						selectableText.Enabled = false;
 					}
 					items.Add(selectableText);
 					textLeft = selectableText.Right + 1;
 				}
 
-				if (options.cancel) {
+				if (options.AllowCancel) {
 					items.Add(new SelectableText(textLeft, Top, Text.Cancel));
 				}
 
-				int selected = options.index;
+				int selected = options.Index;
 				if (selected == -1) {
 					for (int i = 0; i < items.Count; ++i) {
 						if (items[i].Enabled) {
@@ -1008,10 +1038,10 @@ namespace CarrionManagerConsole
 					bool inputValid = false;
 					while (!inputValid) {
 						var key = Console.ReadKey(true).Key;
-						if (!Program.keybindings.ContainsKey(key))
+						if (!Program.navigationKeybindings.ContainsKey(key))
 							continue;
 
-						var command = Program.keybindings[key];
+						var command = Program.navigationKeybindings[key];
 						switch (command) {
 							case Properties.Command.NavigateLeft:
 								if (selected > 0) {
@@ -1031,7 +1061,7 @@ namespace CarrionManagerConsole
 								break;
 							case Properties.Command.Confirm:
 								if (items[selected].Enabled) {
-									if (options.cancel && selected == (items.Count - 1)) {
+									if (options.AllowCancel && selected == (items.Count - 1)) {
 										selected = -1;
 									}
 									inputValid = true;
@@ -1039,7 +1069,7 @@ namespace CarrionManagerConsole
 								}
 								break;
 							case Properties.Command.Cancel:
-								if (options.cancel) {
+								if (options.AllowCancel) {
 									selected = -1;
 									inputValid = true;
 									finished = true;
@@ -1054,21 +1084,30 @@ namespace CarrionManagerConsole
 
 			public int PromptSelection(string[] selectableItems, bool cancel) {
 				var options = new Options() {
-					cancel = cancel,
+					AllowCancel = cancel,
 				};
 				return PromptSelection(selectableItems, options);
 			}
 
 			public class Options
 			{
-				public bool cancel; // Adds the "Cancel" option to the end of the list. Accepts Escape-key.
-				public int index;
-				public List<int> disabledItems;
+				/// <summary>
+				/// Adds the "Cancel" option to the end of the list. Prompt accepts Cancel (e.g. Esc-Key) command.
+				/// </summary>
+				public bool AllowCancel { get; set; }
+				/// <summary>
+				/// The zero-based index of the initially selected item.
+				/// </summary>
+				public int Index;
+				/// <summary>
+				/// The zero-based list of all disabled items' indexes.
+				/// </summary>
+				public List<int> DisabledItems;
 
 				public Options() {
-					cancel = false;
-					index = -1;
-					disabledItems = new List<int>();
+					AllowCancel = false;
+					Index = -1;
+					DisabledItems = new List<int>();
 				}
 			}
 		}
@@ -1124,47 +1163,491 @@ namespace CarrionManagerConsole
 			public void WriteLine() {
 				WriteLine(string.Empty);
 			}
+
+			public void WriteAllMapInfo(Map map) {
+				ClearContent();
+				WriteLine(Text.MapInfoMapName + map.Name);
+				WriteLine(Text.MapInfoVersion + (string.IsNullOrEmpty(map.Version) ? Text.MapInfoNoVersion : map.Version));
+				WriteLine(Text.MapInfoAuthor + (string.IsNullOrEmpty(map.Author) ? Text.MapInfoNoAuthor : map.Author));
+				WriteLine(Text.MapInfoStartupLevel + (string.IsNullOrEmpty(map.StartupLevel) ? Text.MapInfoNoStartupLevel : map.StartupLevel));
+				WriteLine(Text.MapInfoIsWIP + map.IsWIP.ToString());
+				WriteLine(Text.MapInfoShortDescription + (string.IsNullOrEmpty(map.ShortDescription) ? Text.MapInfoNoDescription : map.ShortDescription));
+				if (string.IsNullOrEmpty(map.LongDescription)) {
+					WriteLine(Text.MapInfoLongDescription + Text.MapInfoNoDescription);
+				} else {
+					WriteLine(Text.MapInfoLongDescription);
+					List<string> longDescription = Program.SplitIntoLines(map.LongDescription, Width);
+					for (int i = 0; i < longDescription.Count && nextEmptyLine != -1; ++i) {
+						WriteLine(longDescription[i]);
+					}
+				}
+			}
+
+			public void WriteShortMapInfo(Map map) {
+				ClearContent();
+				string firstLine = Text.MapInfoMapName + map.Name;
+				if (map.Version != null) {
+					firstLine += Text.MapInfoSeparator + Text.MapInfoVersion + map.Version;
+				}
+				if (map.Author != null) {
+					firstLine += Text.MapInfoSeparator + Text.MapInfoAuthor + map.Author;
+				}
+				WriteLine(firstLine);
+
+				if (map.ShortDescription != null) {
+					WriteLine(Text.MapInfoShortDescription + map.ShortDescription);
+				}
+
+				if (!map.IsValid) {
+					for (int currentIssue = 0; currentIssue < map.Issues.Count; ++currentIssue) {
+						if (RemainingFreeLines > 1 || map.Issues.Count - currentIssue == 1) {
+							WriteLine(Text.MapHasIssuesIndicator + map.Issues[currentIssue]);
+						} else {
+							WriteLine(string.Format(Text.SoManyMoreIssues, map.Issues.Count - currentIssue));
+							break;
+						}
+					}
+				}
+			}
+
+			public void WriteLongMapInfo(Map map) {
+				ClearContent();
+				WriteLine(Text.MapInfoMapName + map.Name);
+				WriteLine(Text.MapInfoVersion + (string.IsNullOrEmpty(map.Version) ? Text.MapInfoNoVersion : map.Version));
+				WriteLine(Text.MapInfoAuthor + (string.IsNullOrEmpty(map.Author) ? Text.MapInfoNoAuthor : map.Author));
+				WriteLine(Text.MapInfoStartupLevel + (string.IsNullOrEmpty(map.StartupLevel) ? Text.MapInfoNoStartupLevel : map.StartupLevel));
+				if (string.IsNullOrEmpty(map.LongDescription)) {
+					WriteLine(Text.MapInfoLongDescription + Text.MapInfoNoDescription);
+				} else {
+					WriteLine(Text.MapInfoLongDescription);
+					List<string> longDescription = Program.SplitIntoLines(map.LongDescription, Width);
+					for (int i = 0; i < longDescription.Count && nextEmptyLine != -1; ++i) {
+						WriteLine(longDescription[i]);
+					}
+				}
+			}
 		}
-
-		public interface IDrawable
+		public class TextInput : Drawable
 		{
-			public int Left { get; set; }
-			public int Top { get; set; }
-			public int Width { get; set; }
-			public int Height { get; set; }
-			public ConsoleColor Background { get; set; }
-			public ConsoleColor Foreground { get; set; }
+			private int totalColumnIndex, cursorColumnIndex, cursorRowIndex;
+			private int scroll;
+			private List<string> textLines;
 
-			public int Bottom { get; }
-			public int Right { get; }
+			public TextInput(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground) : base(left, top, width, height, background, foreground) {
+				Text = string.Empty;
+				PreviewText = string.Empty;
+			}
 
-			public abstract void Clear();
-			public abstract void Draw();
-		}
-		public interface INavigable : IDrawable
-		{
-			public bool CanNavigate { get; }
-			public bool CanNavigateDown { get; }
-			public bool CanNavigateLeft { get; }
-			public bool CanNavigateRight { get; }
-			public bool CanNavigateUp { get; }
-			public int CurrentColumn { get; }
-			public int CurrentRow { get; }
-			public bool IsActive { get; }
+			public TextInput(int left, int top, int width, int height, ConsoleColor background, ConsoleColor foreground, string text, string previewText, PromptOptions defaultOptions) : base(left, top, width, height, background, foreground) {
+				Text = text ?? string.Empty;
+				PreviewText = previewText ?? string.Empty;
+				DefaultOptions = defaultOptions;
+			}
 
-			public abstract void Deactivate();
-			public abstract void NavigateDown();
-			public abstract void NavigateLeft();
-			public abstract void NavigateRight();
-			public abstract void NavigateToDefault();
-			public abstract void NavigateToFirstColumn(int row);
-			public abstract void NavigateToFirstRow(int column);
-			public abstract void NavigateToLastColumn(int row);
-			public abstract void NavigateToLastRow(int column);
-			public abstract void NavigateUp();
-			public abstract void PageDown();
-			public abstract void PageUp();
-			public abstract Input PromptInput();
+			public PromptOptions DefaultOptions;
+			public string PreviewText { get; set; }
+			public string Text { get; set; }
+
+			public override void Draw() {
+				if (Height > 1) {
+					for (int i = 0; i < textLines.Count; i++) {
+						Write(Left, Top + i, FixedWidth(textLines[i], Width), Background, Foreground);
+					}
+				} else {
+					Write(Left, Top, FixedWidth(Text, Width), Background, Foreground);
+				}
+			}
+
+			/// <summary>
+			/// Prompts the user to input text and stores the result it this instance's <see cref="Text"/> property.
+			/// </summary>
+			/// <param name="promptOptions">How the prompt will behave (e.g. whether to show preview text or whether the user can cancel).</param>
+			/// <returns>
+			/// <para>true if the user confirmed the input.</para>
+			/// <para>false if they cancelled it (in which case the Text will revert to its string before the input)</para>
+			/// </returns>
+			public bool PromptText(PromptOptions promptOptions) {
+				Console.CursorVisible = true;
+				string initialText = Text;
+				cursorColumnIndex = 0;
+				scroll = 0;
+
+				if (promptOptions == null) {
+					promptOptions = new PromptOptions();
+				}
+
+				if (!string.IsNullOrEmpty(promptOptions.PreWrittenText)) {
+					Text = promptOptions.PreWrittenText;
+				} else if (promptOptions.PreWriteCurrentText) {
+					// Keep current text
+				} else {
+					Text = string.Empty;
+				}
+				cursorColumnIndex = Text.Length;
+
+				while (true) {
+					bool textChanged = true;
+					if (ScrollToCursorHorizontally() || textChanged) {
+						textChanged = false;
+						Console.CursorVisible = false;
+						DrawPrompt();
+						Console.CursorVisible = true;
+					}
+					Console.SetCursorPosition(Left + cursorColumnIndex - scroll, Top);
+
+					var input = Console.ReadKey(true);
+					if (Program.textInputKeybindings.ContainsKey(input.Key)) {
+						switch (Program.textInputKeybindings[input.Key]) {
+							case Properties.Command.Confirm:
+								if (Text != string.Empty || promptOptions.AllowEmpty) {
+									Console.CursorVisible = false;
+									Draw();
+									return true;
+								}
+								break;
+							case Properties.Command.Cancel:
+								if (promptOptions.CanCancel) {
+									Console.CursorVisible = false;
+									Text = initialText;
+									Draw();
+									return false;
+								}
+								break;
+							case Properties.Command.NavigateLeft:
+								if (cursorColumnIndex > 0) {
+									cursorColumnIndex--;
+								}
+								break;
+							case Properties.Command.NavigateRight:
+								if (cursorColumnIndex < Text.Length) {
+									cursorColumnIndex++;
+								}
+								break;
+							case Properties.Command.GoToStart:
+								cursorColumnIndex = 0;
+								break;
+							case Properties.Command.GoToEnd:
+								cursorColumnIndex = Text.Length;
+								break;
+							case Properties.Command.DeletePreviousCharacter:
+								if (cursorColumnIndex > 0) {
+									Text = Text.Remove(--cursorColumnIndex, 1);
+									textChanged = true;
+								}
+								break;
+							case Properties.Command.DeleteCurrentCharacter:
+								if (cursorColumnIndex <= Text.Length - 1) {
+									Text = Text.Remove(cursorColumnIndex);
+									textChanged = true;
+								}
+								break;
+						}
+					} else {
+						char charInput = input.KeyChar;
+						if (cursorColumnIndex == Text.Length) {
+							Text += charInput;
+							cursorColumnIndex++;
+							textChanged = true;
+						} else {
+							Text = Text.Insert(cursorColumnIndex++, charInput.ToString());
+							textChanged = true;
+						}
+					}
+				}
+			}
+
+			/// <summary>
+			/// Prompts the user to input text and stores the result it this instance's <see cref="Text"/> property.
+			/// </summary>
+			/// <remarks>
+			/// <para>This method will use the default <see cref="PromptOptions"/>.</para>
+			/// <para>Use <see cref="PromptText(PromptOptions)"/> to customize them.</para>
+			/// </remarks>
+			/// <returns>
+			/// <para>true if the user confirmed the input.</para>
+			/// <para>false if they cancelled it (in which case the Text will revert to its string before the input)</para>
+			/// </returns>
+			public bool PromptText() {
+				return PromptText(DefaultOptions);
+			}
+
+			public bool PromptTextMultiline(PromptOptions promptOptions) {
+				Console.CursorVisible = true;
+				string initialText = Text;
+
+				if (promptOptions == null) {
+					promptOptions = new PromptOptions();
+				}
+
+				if (!string.IsNullOrEmpty(promptOptions.PreWrittenText)) {
+					Text = promptOptions.PreWrittenText;
+				} else if (promptOptions.PreWriteCurrentText) {
+					// Keep current text
+				} else {
+					Text = string.Empty;
+				}
+				textLines = Program.SplitIntoLines(Text, Width);
+				cursorRowIndex = textLines.Count - 1;
+				cursorColumnIndex = textLines[cursorRowIndex].Length;
+				totalColumnIndex = -1;
+				foreach (string line in textLines) {
+					totalColumnIndex += line.Length + 1;
+				}
+
+				while (true) {
+					bool textChanged = true;
+					if (ScrollToCursorVertically() || textChanged) {
+						textChanged = false;
+						Console.CursorVisible = false;
+						DrawPromptMultiline();
+						Console.CursorVisible = true;
+					}
+					Console.SetCursorPosition(Left + cursorColumnIndex, Top + cursorRowIndex - scroll);
+
+					ConsoleKeyInfo input = Console.ReadKey(true);
+					if (Program.textInputKeybindings.ContainsKey(input.Key) &&
+						!(input.Key == ConsoleKey.Enter && input.Modifiers == ConsoleModifiers.Shift)) {
+						switch (Program.textInputKeybindings[input.Key]) {
+							case Properties.Command.Confirm:
+								if (Text != string.Empty || promptOptions.AllowEmpty) {
+									Console.CursorVisible = false;
+									Draw();
+									return true;
+								}
+								break;
+							case Properties.Command.Cancel:
+								if (promptOptions.CanCancel) {
+									Console.CursorVisible = false;
+									Text = initialText;
+									Draw();
+									return false;
+								}
+								break;
+							case Properties.Command.NavigateDown:
+								if (cursorRowIndex == textLines.Count - 2) {
+									totalColumnIndex += textLines[cursorRowIndex].Length - cursorColumnIndex + 1;
+									cursorColumnIndex = Math.Min(textLines[++cursorRowIndex].Length, cursorColumnIndex);
+									totalColumnIndex += cursorColumnIndex;
+								} else if (cursorRowIndex < textLines.Count - 2) {
+									totalColumnIndex += textLines[cursorRowIndex].Length - cursorColumnIndex + 1;
+									cursorColumnIndex = Math.Min(textLines[++cursorRowIndex].Length - 1, cursorColumnIndex);
+									totalColumnIndex += cursorColumnIndex;
+								}
+								break;
+							case Properties.Command.NavigateLeft:
+								if (cursorColumnIndex > 0) {
+									cursorColumnIndex--;
+									totalColumnIndex--;
+								} else if (cursorRowIndex > 0) {
+									cursorColumnIndex = textLines[--cursorRowIndex].Length - 1;
+									totalColumnIndex--;
+								}
+								break;
+							case Properties.Command.NavigateRight:
+								if (cursorRowIndex == textLines.Count - 1) { // Last row
+									if (cursorColumnIndex < textLines[cursorRowIndex].Length) {
+										cursorColumnIndex++;
+										totalColumnIndex++;
+									}
+								} else {
+									if (cursorColumnIndex == textLines[cursorRowIndex].Length - 1) {
+										cursorRowIndex++; // End of line => go to next line
+										cursorColumnIndex = 0;
+									} else {
+										cursorColumnIndex++;
+									}
+
+									totalColumnIndex++;
+								}
+								break;
+							case Properties.Command.NavigateUp:
+								if (cursorRowIndex > 0) {
+									totalColumnIndex -= cursorColumnIndex + 1; // Get to end of previous line
+									cursorColumnIndex = Math.Min(textLines[--cursorRowIndex].Length - 1, cursorColumnIndex);
+									totalColumnIndex -= textLines[cursorRowIndex].Length - cursorColumnIndex; // Adjust total column index to cursor column index
+								}
+								break;
+							case Properties.Command.GoToStart:
+								totalColumnIndex -= cursorColumnIndex;
+								cursorColumnIndex = 0;
+								break;
+							case Properties.Command.GoToEnd:
+								if (cursorRowIndex == textLines.Count - 1) { // Last row
+									totalColumnIndex += (textLines[cursorRowIndex].Length - cursorColumnIndex);
+									cursorColumnIndex = textLines[cursorRowIndex].Length;
+								} else {
+									totalColumnIndex += (textLines[cursorRowIndex].Length - cursorColumnIndex - 1);
+									cursorColumnIndex = textLines[cursorRowIndex].Length - 1;
+								}
+								break;
+							case Properties.Command.DeletePreviousCharacter:
+								if (totalColumnIndex > 0) {
+									Text = Text.Remove(--totalColumnIndex, 1);
+									if (cursorRowIndex == textLines.Count - 1 && cursorColumnIndex > 0) {
+										// If the cursor stays in the last row after the character gets deleted
+										textLines[cursorRowIndex] = textLines[cursorRowIndex].Remove(--cursorColumnIndex, 1);
+										Write(Left, Top + cursorRowIndex, FixedWidth(textLines[cursorRowIndex], Width), Background, Foreground);
+									} else {
+										RefreshMultiLineText();
+										textChanged = true;
+									}
+								}
+								break;
+							case Properties.Command.DeleteCurrentCharacter:
+								if (totalColumnIndex < Text.Length) {
+									Text = Text.Remove(totalColumnIndex, 1);
+									if (cursorRowIndex == textLines.Count - 1 && cursorColumnIndex > 0) {
+										// If the cursor stays in the last row after the character gets deleted
+										textLines[cursorRowIndex] = textLines[cursorRowIndex].Remove(cursorColumnIndex, 1);
+										Write(Left, Top + cursorRowIndex, FixedWidth(textLines[cursorRowIndex], Width), Background, Foreground);
+									} else {
+										RefreshMultiLineText();
+										textChanged = true;
+									}
+								}
+								break;
+						}
+					} else if (input.Key == ConsoleKey.Enter && input.Modifiers == ConsoleModifiers.Shift) {
+						Text = Text.Insert(totalColumnIndex++, "\n");
+						RefreshMultiLineText();
+						textChanged = true;
+					} else {
+						char charInput = input.KeyChar;
+						if (totalColumnIndex == Text.Length) {
+							Text += charInput;
+							if (++cursorColumnIndex <= Width) { // Only current line changed
+								textLines[cursorRowIndex] += charInput;
+								Write(Left, Top + cursorRowIndex, FixedWidth(textLines[cursorRowIndex], Width), Background, Foreground);
+							} else {
+								RefreshMultiLineText();
+								textChanged = true;
+							}
+						} else {
+							Text = Text.Insert(totalColumnIndex++, charInput.ToString());
+							RefreshMultiLineText();
+							textChanged = true;
+						}
+					}
+				}
+			}
+
+			public bool PromptTextMultiline() {
+				return PromptTextMultiline(DefaultOptions);
+			}
+
+			private void DrawPrompt() {
+				if (string.IsNullOrEmpty(Text)) {
+					Write(Left, Top, FixedWidth(PreviewText, Width), MenuColor.PreviewTextBG, MenuColor.PreviewTextFG);
+					return;
+				}
+
+				string visibleText;
+				if (scroll > 0) {
+					if (Text.Length - scroll > Width) {
+						visibleText = Text.Substring(scroll, Width);
+					} else {
+						visibleText = Text.Substring(scroll).PadRight(Width);
+					}
+				} else {
+					visibleText = Text.PadRight(Width);
+				}
+
+				Write(Left, Top, visibleText, Background, Foreground);
+			}
+
+			private void DrawPromptMultiline() {
+				if (string.IsNullOrEmpty(Text)) {
+					string[] previewLines = PreviewText.Split('\n');
+					for (int i = 0; i < previewLines.Length; i++) {
+						Write(Left, Top + i, FixedWidth(previewLines[i], Width), MenuColor.PreviewTextBG, MenuColor.PreviewTextFG);
+					}
+					return;
+				}
+
+				int maxHeigth = Math.Min(textLines.Count - scroll, Height);
+				for (int i = 0; i < maxHeigth; i++) {
+					Write(Left, Top + i, FixedWidth(textLines[i + scroll], Width), Background, Foreground);
+				}
+				if (maxHeigth < Height) { // Clear the free line below just to be sure
+					Write(Left, Top + maxHeigth, new string(' ', Width), Background, Foreground);
+				}
+			}
+
+			private void RefreshMultiLineText() {
+				textLines = Program.SplitIntoLines(Text, Width);
+				int currentColumnIndex = 0;
+				cursorColumnIndex = 0;
+				cursorRowIndex = 0;
+				foreach (string line in textLines) {
+					if (currentColumnIndex + line.Length > totalColumnIndex) {
+						cursorColumnIndex = totalColumnIndex - currentColumnIndex;
+						return;
+					} else {
+						currentColumnIndex += line.Length + 1;
+						cursorRowIndex++;
+					}
+				}
+				// Reached end of text. Reverting last row increase.
+				cursorColumnIndex = textLines[--cursorRowIndex].Length;
+			}
+
+			private bool ScrollToCursorHorizontally() {
+				bool scrolled = false;
+				if (scroll > 0 && Text.Length - scroll + 1 < Width) { // If there's unused space to the right
+					scroll = Text.Length - Width + 1;
+					scrolled = true;
+				}
+				if (cursorColumnIndex - scroll >= Width) { // If the cursor is too far to the right
+					scroll = cursorColumnIndex - Width + 1;
+					scrolled = true;
+
+				} else if (cursorColumnIndex < scroll) { // If the cursor is too far to the left
+					scroll = cursorColumnIndex;
+					scrolled = true;
+				}
+
+				return scrolled;
+			}
+
+			private bool ScrollToCursorVertically() {
+				bool scrolled = false;
+				if (scroll > 0 && textLines.Count - scroll + 1 < Height) { // If there's unused space at the bottom
+					scroll = textLines.Count - Height + 1;
+					scrolled = true;
+				}
+				if (cursorRowIndex - scroll >= Height) { // If the cursor is too far to the bottom
+					scroll = cursorRowIndex - Height + 1;
+					scrolled = true;
+
+				} else if (cursorRowIndex < scroll) { // If the cursor is too far to the top
+					scroll = cursorRowIndex;
+					scrolled = true;
+				}
+
+				return scrolled;
+			}
+
+			public class PromptOptions
+			{
+				public PromptOptions() {
+					AllowEmpty = true;
+					CanCancel = false;
+					PreWriteCurrentText = false;
+					PreWrittenText = string.Empty;
+				}
+
+				public PromptOptions(bool allowEmpty, bool canCancel, bool preWriteCurrentText, string preWrittenText) {
+					AllowEmpty = allowEmpty;
+					CanCancel = canCancel;
+					PreWriteCurrentText = preWriteCurrentText;
+					PreWrittenText = preWrittenText;
+				}
+
+				public bool AllowEmpty { get; set; }
+				public bool CanCancel { get; set; }
+				public bool PreWriteCurrentText { get; set; }
+				public string PreWrittenText { get; set; }
+			}
 		}
 
 		#region Event Arguments

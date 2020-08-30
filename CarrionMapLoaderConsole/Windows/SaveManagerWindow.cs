@@ -13,7 +13,7 @@ namespace CarrionManagerConsole
 
 		public SaveManagerWindow() : base(Text.SaveManagerWindowTitle, MenuColor.SaveMangerWindowTitleBG, MenuColor.SaveMangerWindowTitleFG) {
 			CommandsList = Menu.AddListBox(0, null, true);
-			CommandsList.SetContent(new string[] {
+			CommandsList.SetItems(new string[] {
 				Text.BackUpCurrentSave,
 				Text.ViewBackups,
 				Text.ToggleAutoBackups });
@@ -90,7 +90,7 @@ namespace CarrionManagerConsole
 		public void RefreshInfo() {
 			currentSavedMapName = GetCurrentSavedMapName();
 			backedUpSaves = GetBackedUpMapSaveNames();
-			BackedUpSavesList.SetContent(backedUpSaves.ToArray());
+			BackedUpSavesList.SetItems(backedUpSaves.ToArray());
 		}
 
 		public void LoadBackedUpSave(string mapName) {

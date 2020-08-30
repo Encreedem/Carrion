@@ -1,0 +1,8 @@
+MapName=Your map name
+Author=Your name
+Version=1.0
+ShortDescription=A short description of your map. Up to 107 characters.
+LongDescription=A detailed description of your map.
+_If you use a text editor, write multiple lines with an underscore at the start of the line.
+_Only use multiple lines for the long description. 
+StartupLevel=The name of the first level without the .json (only if you have more than one level, otherwise you can delete this line).

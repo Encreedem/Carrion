@@ -12,7 +12,7 @@ namespace CarrionManagerConsole
 
 		public BackupsWindow() : base(Text.BackupsWindowTitle, MenuColor.BackupsWindowTitleBG, MenuColor.BackupsWindowTitleFG) {
 			CommandsList = Menu.AddListBox(0, null, true);
-			CommandsList.SetContent(new string[] {
+			CommandsList.SetItems(new string[] {
 				Text.BackedUpLevels,
 				Text.BackedUpScripts,
 			});
@@ -76,9 +76,9 @@ namespace CarrionManagerConsole
 
 		public void RefreshInfo() {
 			backedUpLevels = GetBackedUpLevelNames();
-			BackedUpLevelsList.SetContent(backedUpLevels);
+			BackedUpLevelsList.SetItems(backedUpLevels);
 			backedUpScripts = GetBackedUpScriptNames();
-			BackedUpScriptsList.SetContent(backedUpScripts);
+			BackedUpScriptsList.SetItems(backedUpScripts);
 		}
 
 		/// <summary>

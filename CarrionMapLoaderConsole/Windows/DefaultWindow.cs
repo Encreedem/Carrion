@@ -39,10 +39,7 @@ namespace CarrionManagerConsole
 		public GUI.Box MenuCommandSeparator { get; set; }
 		public GUI.SelectionPrompt SelectionPrompt { get; set; }
 		public GUI.Box CommandLogSeparator { get; set; }
-		//public GUI.TextBox InfoTextBox { get; set; }
-		//public GUI.Box InfoLogSeparator { get; set; }
 		public GUI.TextBox LogTextBox { get; set; }
-		//public GUI.Box DecorativeLine { get; set; }
 		public GUI.Label ControlsLabel { get; set; }
 
 		public bool WindowQuit { get; set; }
@@ -62,6 +59,11 @@ namespace CarrionManagerConsole
 				case Properties.Command.ShowBackupsWindow:
 					nextWindow = Program.backupsWindow;
 					break;
+				case Properties.Command.ShowMappingToolsWindow:
+					if (Program.mappingToolsEnabled) {
+						nextWindow = Program.mappingToolsWindow;
+					}
+					break;
 			}
 
 			if (nextWindow == null || nextWindow == Program.currentWindow) {
@@ -78,37 +80,21 @@ namespace CarrionManagerConsole
 			Menu.Draw();
 			MenuCommandSeparator.Draw();
 			CommandLogSeparator.Draw();
-			//InfoTextBox.Draw();
-			//InfoLogSeparator.Draw();
 			LogTextBox.Draw();
-			//DecorativeLine.Draw();
 			ControlsLabel.Draw();
 		}
 
 		public void Init() {
 			int width = Console.WindowWidth;
-			//int halfWidth = width / 2;
 			int height = Console.WindowHeight;
 			Title = new GUI.Label(0, 0, width, TitleHeight, titleBG, titleFG, title) {
 				HorizontalAlignment = Properties.HorizontalAlignment.Center
 			};
 			ControlsLabel = new GUI.Label(
 				0, height - ControlsLabelHeight,
-				width, ControlsLabelHeight,
+				width - 1, ControlsLabelHeight,
 				MenuColor.ControlsBG, MenuColor.ControlsFG,
 				Text.DefaultControls);
-			/*DecorativeLine = new GUI.Box(
-				0, ControlsLabel.Top - TextBoxesCommandsDistance - 1,
-				halfWidth, 1,
-				MenuColor.SeparatorBG, MenuColor.SeparatorFG);
-			InfoTextBox = new GUI.TextBox(
-				0, ControlsLabel.Top - TextBoxesCommandsDistance - LowerTextBoxesHeight,
-				halfWidth - 1, LowerTextBoxesHeight - 1,
-				MenuColor.ContentBG, MenuColor.ContentFG);
-			InfoLogSeparator = new GUI.Box(
-				halfWidth - 1, InfoTextBox.Top,
-				InfoLogSeparatorWidth, LowerTextBoxesHeight,
-				MenuColor.SeparatorBG, MenuColor.SeparatorFG);*/
 			LogTextBox = new GUI.TextBox(
 				0, ControlsLabel.Top - TextBoxesCommandsDistance - LowerTextBoxesHeight,
 				width, LowerTextBoxesHeight,

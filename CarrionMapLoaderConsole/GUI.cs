@@ -151,6 +151,7 @@ namespace CarrionManagerConsole
 			public override bool CanNavigateDown => true;
 			public override bool CanNavigateLeft => true;
 			public override bool CanNavigateRight => true;
+			public override bool CanNavigateToChar => true;
 			public override bool CanNavigateUp => true;
 			public int ColumnCount { get; private set; }
 			public override int CurrentColumn => currentColumn;
@@ -266,6 +267,12 @@ namespace CarrionManagerConsole
 						currentColumn = c;
 						CurrentNavigable.NavigateToFirstColumn(row);
 					}
+				}
+			}
+			public override void NavigateToChar(char c) {
+				Navigable navigable = CurrentNavigable;
+				if (navigable != null && navigable.CanNavigateToChar) {
+					navigable.NavigateToChar(c);
 				}
 			}
 
@@ -475,6 +482,21 @@ namespace CarrionManagerConsole
 				RefreshContentInfo();
 			}
 
+			public void AddMaps(List<LoadableMap> maps) {
+				int top = NextItemTop;
+				int textWidth = Width - 1;
+				for (int i = 0; i < maps.Count; ++i) {
+					var item = new SelectableMap(Left, top + i, textWidth, maps[i]);
+					Items.Add(item);
+					SetItemVisibility(item);
+				}
+				RefreshContentInfo();
+			}
+
+			public void AddSeparator() {
+				Items.Add(new SelectableText(Left, NextItemTop, Width - 1, new string('-', Width - 1)));
+			}
+
 			public override void Draw() {
 				foreach (var item in VisibleItems) {
 					item.Draw();
@@ -539,6 +561,11 @@ namespace CarrionManagerConsole
 				AddItems(content);
 			}
 
+			public void SetMaps(List<Map> maps) {
+				Items.Clear();
+				AddMaps(maps);
+			}
+
 			public void SetItemVisibility(SelectableText item) {
 				item.Visible = (item.Top >= Top && item.Top < Top + Height);
 			}
@@ -557,6 +584,7 @@ namespace CarrionManagerConsole
 			public abstract bool CanNavigateDown { get; }
 			public abstract bool CanNavigateLeft { get; }
 			public abstract bool CanNavigateRight { get; }
+			public abstract bool CanNavigateToChar { get; }
 			public abstract bool CanNavigateUp { get; }
 			public abstract int CurrentColumn { get; }
 			public abstract int CurrentRow { get; }
@@ -567,6 +595,7 @@ namespace CarrionManagerConsole
 			public abstract void NavigateDown();
 			public abstract void NavigateLeft();
 			public abstract void NavigateRight();
+			public abstract void NavigateToChar(char c);
 			public abstract void NavigateToDefault();
 			public abstract void NavigateToFirstColumn(int row);
 			public abstract void NavigateToFirstRow(int column);
@@ -581,45 +610,47 @@ namespace CarrionManagerConsole
 				}
 
 				while (true) {
-					var input = Console.ReadKey(true).Key;
-					if (!Program.navigationKeybindings.ContainsKey(input)) {
-						continue;
-					}
-
-					Properties.Command command = Program.navigationKeybindings[input];
-					switch (command) {
-						case Properties.Command.NavigateUp:
-							if (CanNavigateUp) {
-								NavigateUp();
-							}
-							break;
-						case Properties.Command.PageUp:
-							if (CanNavigateUp) {
-								PageUp();
-							}
-							break;
-						case Properties.Command.NavigateDown:
-							if (CanNavigateDown) {
-								NavigateDown();
-							}
-							break;
-						case Properties.Command.PageDown:
-							if (CanNavigateDown) {
-								PageDown();
-							}
-							break;
-						case Properties.Command.NavigateLeft:
-							if (CanNavigateLeft) {
-								NavigateLeft();
-							}
-							break;
-						case Properties.Command.NavigateRight:
-							if (CanNavigateRight) {
-								NavigateRight();
-							}
-							break;
-						default:
-							return new Input(this, CurrentColumn, CurrentRow, command);
+					ConsoleKeyInfo input = Console.ReadKey(true);
+					ConsoleKey inputKey = input.Key;
+					char inputChar = input.KeyChar;
+					if (Program.navigationKeybindings.ContainsKey(inputKey)) {
+						Properties.Command command = Program.navigationKeybindings[inputKey];
+						switch (command) {
+							case Properties.Command.NavigateUp:
+								if (CanNavigateUp) {
+									NavigateUp();
+								}
+								break;
+							case Properties.Command.PageUp:
+								if (CanNavigateUp) {
+									PageUp();
+								}
+								break;
+							case Properties.Command.NavigateDown:
+								if (CanNavigateDown) {
+									NavigateDown();
+								}
+								break;
+							case Properties.Command.PageDown:
+								if (CanNavigateDown) {
+									PageDown();
+								}
+								break;
+							case Properties.Command.NavigateLeft:
+								if (CanNavigateLeft) {
+									NavigateLeft();
+								}
+								break;
+							case Properties.Command.NavigateRight:
+								if (CanNavigateRight) {
+									NavigateRight();
+								}
+								break;
+							default:
+								return new Input(this, CurrentColumn, CurrentRow, command);
+						}
+					} else if (CanNavigateToChar && char.IsLetterOrDigit(inputChar)) {
+						NavigateToChar(char.ToLower(inputChar));
 					}
 				}
 			}
@@ -787,6 +818,7 @@ namespace CarrionManagerConsole
 			public override bool CanNavigateDown => canNavigateVertically;
 			public override bool CanNavigateLeft => canNavigateHorizontally;
 			public override bool CanNavigateRight => canNavigateHorizontally;
+			public override bool CanNavigateToChar => true;
 			public override bool CanNavigateUp => canNavigateVertically;
 			public override int CurrentColumn {
 				get {
@@ -838,6 +870,22 @@ namespace CarrionManagerConsole
 				}
 			}
 
+			public override void NavigateToChar(char c) {
+				for (int i = SelectedItemIndex + 1; i < Items.Count; i++) {
+					if (Items[i].Value.ToLower().StartsWith(c)) {
+						Select(i);
+						return;
+					}
+				}
+
+				for (int i = 0; i < SelectedItemIndex; i++) {
+					if (Items[i].Value.ToLower().StartsWith(c)) {
+						Select(i);
+						return;
+					}
+				}
+			}
+
 			public override void NavigateToDefault() {
 				SelectFirstItem();
 			}
@@ -849,6 +897,7 @@ namespace CarrionManagerConsole
 					Select(row);
 				}
 			}
+
 			public override void NavigateToFirstRow(int column) {
 				if (Alignment == Properties.Alignment.Horizontal) {
 					Select(column);
@@ -1183,18 +1232,32 @@ namespace CarrionManagerConsole
 				}
 			}
 
+			public void WriteMapIssues(Map map) {
+				ClearContent();
+				if (!map.IsValid) {
+					for (int currentIssue = 0; currentIssue < map.Issues.Count; ++currentIssue) {
+						if (RemainingFreeLines > 1 || map.Issues.Count - currentIssue == 1) {
+							WriteLine(Text.MapHasIssuesIndicator + map.Issues[currentIssue]);
+						} else {
+							WriteLine(string.Format(Text.SoManyMoreIssues, map.Issues.Count - currentIssue));
+							break;
+						}
+					}
+				}
+			}
+
 			public void WriteShortMapInfo(Map map) {
 				ClearContent();
 				string firstLine = Text.MapInfoMapName + map.Name;
-				if (map.Version != null) {
+				if (!string.IsNullOrEmpty(map.Version)) {
 					firstLine += Text.MapInfoSeparator + Text.MapInfoVersion + map.Version;
 				}
-				if (map.Author != null) {
+				if (!string.IsNullOrEmpty(map.Author)) {
 					firstLine += Text.MapInfoSeparator + Text.MapInfoAuthor + map.Author;
 				}
 				WriteLine(firstLine);
 
-				if (map.ShortDescription != null) {
+				if (!string.IsNullOrEmpty(map.ShortDescription)) {
 					WriteLine(Text.MapInfoShortDescription + map.ShortDescription);
 				}
 
@@ -1285,8 +1348,8 @@ namespace CarrionManagerConsole
 				}
 				cursorColumnIndex = Text.Length;
 
+				bool textChanged = true;
 				while (true) {
-					bool textChanged = true;
 					if (ScrollToCursorHorizontally() || textChanged) {
 						textChanged = false;
 						Console.CursorVisible = false;
@@ -1337,7 +1400,7 @@ namespace CarrionManagerConsole
 								break;
 							case Properties.Command.DeleteCurrentCharacter:
 								if (cursorColumnIndex <= Text.Length - 1) {
-									Text = Text.Remove(cursorColumnIndex);
+									Text = Text.Remove(cursorColumnIndex, 1);
 									textChanged = true;
 								}
 								break;
@@ -1394,8 +1457,8 @@ namespace CarrionManagerConsole
 					totalColumnIndex += line.Length + 1;
 				}
 
+				bool textChanged = true;
 				while (true) {
-					bool textChanged = true;
 					if (ScrollToCursorVertically() || textChanged) {
 						textChanged = false;
 						Console.CursorVisible = false;
@@ -1513,7 +1576,7 @@ namespace CarrionManagerConsole
 						textChanged = true;
 					} else {
 						char charInput = input.KeyChar;
-						if (totalColumnIndex == Text.Length) {
+						if (totalColumnIndex++ == Text.Length) {
 							Text += charInput;
 							if (++cursorColumnIndex <= Width) { // Only current line changed
 								textLines[cursorRowIndex] += charInput;
@@ -1523,7 +1586,7 @@ namespace CarrionManagerConsole
 								textChanged = true;
 							}
 						} else {
-							Text = Text.Insert(totalColumnIndex++, charInput.ToString());
+							Text = Text.Insert(totalColumnIndex, charInput.ToString());
 							RefreshMultiLineText();
 							textChanged = true;
 						}

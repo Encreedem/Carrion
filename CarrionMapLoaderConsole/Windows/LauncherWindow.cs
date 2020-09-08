@@ -54,30 +54,25 @@ namespace CarrionManagerConsole
 			DetailsTextBox.WriteLongMapInfo(selectedMap);
 		}
 
-		public override void PreShow() {
-			var launchableMaps = new string[Program.installedMaps.Count + 1];
-			launchableMaps[0] = Text.MainGame;
-			Program.MapListToStringArray(Program.installedMaps).CopyTo(launchableMaps, 1);
-			LaunchableMapsList.SetItems(launchableMaps);
-		}
-
 		public override void Selected(GUI.Selection selection) {
 			if (selection.List.IsEmpty) {
 				return;
 			}
 			LogTextBox.ClearContent();
-			Map map = Program.mapInstallerWindow.FindInstalledMap(selection.Text);
+			LaunchableMapsList.HighlightCurrentItem();
+			Map map = null;
 			string mapName;
 			if (selection.RowIndex == 0) {
 				mapName = Text.MainGame;
 			} else {
+				map = ((GUI.SelectableMap)selection.SelectedItem).Map;
 				mapName = map.Name;
 			}
 			var options = new GUI.SelectionPrompt.Options() { AllowCancel = true };
 			if (selection.RowIndex == 0) { // main map
 				options.DisabledItems.Add(2); // Disable "Set Startup Level"
 			} else {
-				if (map.StartupLevel == null) {
+				if (string.IsNullOrEmpty(map.StartupLevel)) {
 					options.DisabledItems.Add(1); // Disable "New Game"
 				}
 				if (!Program.saveManagerWindow.MapHasSave(map)) {
@@ -85,10 +80,7 @@ namespace CarrionManagerConsole
 				}
 			}
 			int response = SelectionPrompt.PromptSelection(
-				new string[] {
-								Text.Continue,
-								Text.NewGame,
-								Text.SetStartupLevel },
+				new string[] { Text.Continue, Text.NewGame, Text.SetStartupLevel },
 				options);
 			switch (response) {
 				case 0: // Continue
@@ -100,7 +92,7 @@ namespace CarrionManagerConsole
 						}
 						LaunchGame(null);
 					} catch (Exception e) {
-						LogTextBox.WriteLine(string.Format("ERROR: {0}", e.Message));
+						LogTextBox.WriteLine(string.Format(Text.ErrorWithMessage, e.Message));
 					}
 					break;
 				case 1: // New Game
@@ -112,7 +104,7 @@ namespace CarrionManagerConsole
 						}
 						LaunchGame((selection.RowIndex == 0) ? null : map);
 					} catch (Exception e) {
-						LogTextBox.WriteLine(string.Format("ERROR: {0}", e.Message));
+						LogTextBox.WriteLine(string.Format(Text.ErrorWithMessage, e.Message));
 					}
 					break;
 				case 2: // Set Startup Level
@@ -120,14 +112,11 @@ namespace CarrionManagerConsole
 					DetailsTextBox.WriteLongMapInfo(map);
 					break;
 			}
+			LaunchableMapsList.SelectCurrentItem();
 		}
 
 		public void SetStartupLevel(Map map) {
-			var levelsWithoutExtension = new string[map.Levels.Length];
-			for (int i = 0; i < map.Levels.Length; ++i) {
-				levelsWithoutExtension[i] = Program.RemoveLevelExtension(map.Levels[i]);
-			}
-			StartupLevelList.SetItems(levelsWithoutExtension);
+			StartupLevelList.SetItems(map.GetLevelsWithoutExtension());
 			StartupLevelList.Clear();
 			StartupLevelList.Draw();
 			StartupLevelList.Select(0);
@@ -143,6 +132,12 @@ namespace CarrionManagerConsole
 			}
 
 			StartupLevelList.Clear();
+		}
+
+		public override void Show() {
+			LaunchableMapsList.SetItems(new string[] { Text.MainGame });
+			LaunchableMapsList.AddMaps(Program.installedMaps);
+			base.Show();
 		}
 	}
 }

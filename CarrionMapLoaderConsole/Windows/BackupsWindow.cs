@@ -69,11 +69,6 @@ namespace CarrionManagerConsole
 			return onlyFileNames;
 		}
 
-		public override void PreShow() {
-			RefreshInfo();
-			WriteSummary();
-		}
-
 		public void RefreshInfo() {
 			backedUpLevels = GetBackedUpLevelNames();
 			BackedUpLevelsList.SetItems(backedUpLevels);
@@ -135,6 +130,12 @@ namespace CarrionManagerConsole
 			CommandsList.SelectCurrentItem();
 			DetailsTextBox.Clear();
 			WriteSummary();
+		}
+
+		public override void Show() {
+			RefreshInfo();
+			WriteSummary();
+			base.Show();
 		}
 
 		public void WriteSummary() {

@@ -13,10 +13,10 @@ namespace CarrionManagerConsole
 
 		public MapInstallerWindow() : base(Text.MapInstallerWindowTitle, MenuColor.MapInstallerWindowTitleBG, MenuColor.MapInstallerWindowTitleFG) {
 			InstalledMapsList = Menu.AddListBox(0, Text.MapInstallerInstalledMapsHeader, true);
-			InstalledMapsList.SetItems(Program.MapListToStringArray(Program.installedMaps));
+			InstalledMapsList.AddMaps(Program.installedMaps);
 			InstalledMapsList.SelectionChanged += InstalledMapSelectionChanged;
 			AvailableMapsList = Menu.AddListBox(1, Text.MapInstallerAvailableMapsHeader, true);
-			AvailableMapsList.SetItems(Program.MapListToStringArray(Program.availableMaps));
+			AvailableMapsList.AddMaps(Program.availableMaps);
 			AvailableMapsList.SelectionChanged += AvailableMapSelectionChanged;
 			ignoreNextSelectionChangedEvent = false;
 		}
@@ -81,7 +81,7 @@ namespace CarrionManagerConsole
 			map.Levels.CopyTo(installedMap.Levels, 0);
 			map.Scripts.CopyTo(installedMap.Scripts, 0);
 			Program.installedMaps.Add(installedMap);
-			InstalledMapsList.SetItems(Program.MapListToStringArray(Program.installedMaps));
+			InstalledMapsList.SetMaps(Program.installedMaps);
 			Program.SaveInstalledMaps();
 			Menu.Draw();
 			LogTextBox.AppendLastLine(" installed!");
@@ -112,12 +112,19 @@ namespace CarrionManagerConsole
 				int response = SelectionPrompt.PromptSelection(selections, options);
 				switch (response) {
 					case 0:
-						var currentRow = Menu.CurrentRow;
-						UninstallMap(selectedMap);
-						if (InstalledMapsList.CanNavigate) {
-							InstalledMapsList.Select(currentRow);
+						if (selectedMap.IsWIP) {
+							LogTextBox.WriteLine(Text.CantUninstallWIP);
+							ignoreNextSelectionChangedEvent = true;
 						} else {
-							Menu.NavigateToDefault();
+							var currentRow = Menu.CurrentRow;
+							UninstallMap(selectedMap);
+							bool keepIgnoringSelectionChanged = ignoreNextSelectionChangedEvent;
+							if (InstalledMapsList.CanNavigate) {
+								InstalledMapsList.Select(currentRow);
+							} else {
+								Menu.NavigateToDefault();
+							}
+							ignoreNextSelectionChangedEvent = keepIgnoringSelectionChanged;
 						}
 						break;
 					case 1:
@@ -196,10 +203,10 @@ namespace CarrionManagerConsole
 			}
 			Program.installedMaps.Remove(map);
 			Program.SaveInstalledMaps();
-			InstalledMapsList.SetItems(Program.MapListToStringArray(Program.installedMaps));
+			InstalledMapsList.SetMaps(Program.installedMaps);
 			InstalledMapsList.Clear();
 			InstalledMapsList.Draw();
-			LogTextBox.AppendLastLine(" uninstalled!");
+			LogTextBox.AppendLastLine(Text.Uninstalled);
 			if (Program.backupsWindow.RestoreInstalledMapFiles(map)) {
 				LogTextBox.WriteLine(Text.BackedUpFilesRestored);
 			}
@@ -214,10 +221,6 @@ namespace CarrionManagerConsole
 			}
 
 			return null;
-		}
-
-		public override void PreShow() {
-
 		}
 
 		private bool VerifyNothingOverwritten(LoadableMap map) {

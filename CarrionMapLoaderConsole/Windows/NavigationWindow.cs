@@ -59,7 +59,7 @@ namespace CarrionManagerConsole
 								Program.currentWindow = Program.backupsWindow;
 								break;
 							case 4:
-								Program.currentWindow = Program.mappingToolsWindow;
+								Program.currentWindow = Program.mapEditorWindow;
 								break;
 							default:
 								windowQuit = false;

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using Newtonsoft.Json;
 using System.Text.RegularExpressions;
-using CarrionManagerConsole.Windows;
+using System.Linq;
 
 namespace CarrionManagerConsole
 {
@@ -15,24 +15,17 @@ namespace CarrionManagerConsole
 		 * ### TODO ###
 		 * Defensive programming when handling files
 		 * Verify before overwriting backups
-		 * Show how to prepare custom maps: Add a folder + map to this program's root folder.
 		 * Check whether GOG needs a custom way to launch Carrion
 		 * Check whether other platforms exist for Carrion
 		 * Logger
-		 * "WIP" tag for levels that shouldn't be uninstalled.
 		 * Add a proper Readme.txt.
 		 * 
 		 * ### To consider ###
 		 * Setup Wizard/Extractor
 		 * Settings Window
-		 * Map Extractor (maybe with File Explorer)
 		 * 
 		 * ### Mapping Tools ###
-		 * Add installed map manually
-		 * - Would require checkbox + container for checkboxes
-		 * Window to configure map info and add/remove levels
 		 * Verify map
-		 * Export map
 		 * */
 		public const string
 			ProgramName = "Carrion Manager Console",
@@ -44,22 +37,24 @@ namespace CarrionManagerConsole
 
 		#region Files and Paths
 		public const string
-			LevelFolderName = "Levels", LevelFileExtension = ".json",
-			ScriptFolderName = "Scripts", ScriptFileExtension = ".cgs",
-			ContentFolderName = "Content",
-			SaveFolderName = "Saves", SaveFileExtension = ".crn",
 			BackupFolderName = "Backups",
-			SavesBackupsFolderName = "Saves", SaveInfoFileName = "SaveInfo.txt",
+			ContentFolderName = "Content",
+			EmptyFolderName = "Empty", EmptyLevelFileName = "empty.json", EmptyScriptFileName = "empty.cgs",
+			LevelFolderName = "Levels", LevelFileExtension = ".json",
 			LevelBackupsFolderName = "Levels",
+			SaveFolderName = "Saves", SaveFileExtension = ".crn",
+			SaveBackupsFolderName = "Saves", SaveInfoFileName = "SaveInfo.txt",
+			ScriptFolderName = "Scripts", ScriptFileExtension = ".cgs",
 			ScriptBackupsFolderName = "Scripts",
+			TemplateFolderName = "Templates",
 			ZippedFileExtension = ".zip";
 		public const string
-			SteamRegistryPath = @"Computer\HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Valve\Steam",
-			SteamRegistryKey = "InstallPath",
 			GameExeName = "Carrion.exe",
 			ConfigFileName = "CarrionManagerConsole.cfg",
 			InstalledMapsFileName = "InstalledMaps.json",
-			MapInfoFileName = "MapInfo.txt";
+			MapInfoFileName = "MapInfo.txt",
+			SteamRegistryPath = @"Computer\HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Valve\Steam",
+			SteamRegistryKey = "InstallPath";
 		public const string
 			LaunchSteamGameArgument = "-applaunch 953490",
 			CustomLevelArgument = " -level {0}";
@@ -70,6 +65,9 @@ namespace CarrionManagerConsole
 			backupsPath,
 			configFilePath,
 			customMapsPath,
+			emptyTemplateFolderPath,
+			emptyLevelTemplatePath,
+			emptyScriptTemplatePath,
 			gameContentPath,
 			gameRootPath,
 			gameExePath,
@@ -82,6 +80,7 @@ namespace CarrionManagerConsole
 			saveBackupsPath,
 			saveInfoFilePath,
 			saveFolderPath,
+			templateFolderPath,
 			zippedMapsFolder;
 		#endregion
 
@@ -102,7 +101,7 @@ namespace CarrionManagerConsole
 		public static MapInstallerWindow mapInstallerWindow;
 		public static SaveManagerWindow saveManagerWindow;
 		public static BackupsWindow backupsWindow;
-		public static MappingToolsWindow mappingToolsWindow;
+		public static MapEditorWindow mapEditorWindow;
 
 		public static string GameLaunchMethodToString(Properties.GameLaunchMethod gameLaunchMethod) {
 			return gameLaunchMethod switch
@@ -111,6 +110,22 @@ namespace CarrionManagerConsole
 				Properties.GameLaunchMethod.Steam => Text.ConfigLaunchMethodSteam,
 				_ => throw new Exception(string.Format("Invalid game launch method \"{0}\"", gameLaunchMethod.ToString())),
 			};
+		}
+
+		public static string[] GetInstalledLevelNames() {
+			var files = Directory.GetFiles(installedLevelsPath, "*" + Program.LevelFileExtension);
+			string[] onlyFileNames = files.Select(file => Path.GetFileName(file)).ToArray();
+			return onlyFileNames;
+		}
+
+		public static bool InstalledMapsContainLevel(string levelName) {
+			foreach (var map in installedMaps) {
+				if (map.Levels.Contains(levelName)) {
+					return true;
+				}
+			}
+
+			return false;
 		}
 
 		private static void Init() {
@@ -168,8 +183,8 @@ namespace CarrionManagerConsole
 				[ConsoleKey.NumPad3] = Properties.Command.ShowSaveManager,
 				[ConsoleKey.D4] = Properties.Command.ShowBackupsWindow,
 				[ConsoleKey.NumPad4] = Properties.Command.ShowBackupsWindow,
-				[ConsoleKey.D5] = Properties.Command.ShowMappingToolsWindow,
-				[ConsoleKey.NumPad5] = Properties.Command.ShowMappingToolsWindow,
+				[ConsoleKey.D5] = Properties.Command.ShowMapEditorWindow,
+				[ConsoleKey.NumPad5] = Properties.Command.ShowMapEditorWindow,
 			};
 			textInputKeybindings = new Dictionary<ConsoleKey, Properties.Command>() {
 				[ConsoleKey.Escape] = Properties.Command.Cancel,
@@ -193,7 +208,7 @@ namespace CarrionManagerConsole
 					Text.MapInstallerWindowTitle,
 					Text.SaveManagerWindowTitle,
 					Text.BackupsWindowTitle,
-					Text.MappingToolsWindowTitle,
+					Text.MapEditorWindowTitle,
 				};
 			} else {
 				windowNames = new string[] {
@@ -209,7 +224,7 @@ namespace CarrionManagerConsole
 			mapInstallerWindow = new MapInstallerWindow();
 			saveManagerWindow = new SaveManagerWindow();
 			backupsWindow = new BackupsWindow();
-			mappingToolsWindow = new MappingToolsWindow();
+			mapEditorWindow = new MapEditorWindow();
 
 			currentWindow = navigationWindow;
 		}
@@ -230,7 +245,7 @@ namespace CarrionManagerConsole
 			gameRootPath = string.Format("C:{0}Program Files (x86){0}Steam{0}SteamApps{0}common{0}Carrion{0}", Path.DirectorySeparatorChar);
 			backupsPath = string.Format(".{0}Backups{0}", Path.DirectorySeparatorChar);
 			customMapsPath = string.Format(".{0}Custom Maps{0}", Path.DirectorySeparatorChar);
-			appDataPath = string.Format("C:{0}Users{0}your_username{0}AppData{0}LocalLow{0}Phobia{0}Carrion{0}_steam_xxxxxxxxxxxxxxxxx{0}", Path.DirectorySeparatorChar);
+			appDataPath = string.Format("[user]{0}AppData{0}LocalLow{0}Phobia{0}Carrion{0}_steam_xxxxxxxxxxxxxxxxx{0}", Path.DirectorySeparatorChar);
 			zippedMapsFolder = string.Format("[user]{0}Downloads", Path.DirectorySeparatorChar);
 			mappingToolsEnabled = false;
 			manageSaves = true;
@@ -285,7 +300,7 @@ namespace CarrionManagerConsole
 			customMapsPath = Setting.GetDirectoryPath(settings, Text.ConfigCustomMapsPath);
 			appDataPath = Setting.GetDirectoryPath(settings, Text.ConfigAppDataPath);
 			manageSaves = Setting.Convert(settings, Text.ConfigManageSaves, Setting.ConversionTable.TrueFalse);
-			zippedMapsFolder = Setting.GetDirectoryPath(settings, Text.ConfigZippedMapsPath);
+			//zippedMapsFolder = Setting.GetDirectoryPath(settings, Text.ConfigZippedMapsPath);
 			mappingToolsEnabled = Setting.Convert(settings, Text.ConfigMappingTools, Setting.ConversionTable.TrueFalse);
 
 			if (Setting.MissingSettings.Count > 0) {
@@ -300,6 +315,11 @@ namespace CarrionManagerConsole
 				throw new Exception(Text.SettingsCouldNotBeLoaded);
 			}
 
+			templateFolderPath = Path.Combine(Directory.GetCurrentDirectory(), TemplateFolderName);
+
+			emptyTemplateFolderPath = Path.Combine(TemplateFolderName, EmptyFolderName);
+			emptyLevelTemplatePath = Path.Combine(emptyTemplateFolderPath, EmptyLevelFileName);
+			emptyScriptTemplatePath = Path.Combine(emptyTemplateFolderPath, EmptyScriptFileName);
 			gameExePath = Path.Combine(gameRootPath, GameExeName);
 			gameContentPath = Path.Combine(gameRootPath, ContentFolderName);
 			installedMapsPath = Path.Combine(Directory.GetCurrentDirectory(), InstalledMapsFileName);
@@ -309,7 +329,7 @@ namespace CarrionManagerConsole
 			scriptBackupsPath = Path.Combine(backupsPath, ScriptBackupsFolderName);
 			saveFolderPath = Path.Combine(appDataPath, SaveFolderName);
 			saveInfoFilePath = Path.Combine(saveFolderPath, SaveInfoFileName);
-			saveBackupsPath = Path.Combine(backupsPath, SavesBackupsFolderName);
+			saveBackupsPath = Path.Combine(backupsPath, SaveBackupsFolderName);
 			Directory.CreateDirectory(levelBackupsPath);
 			Directory.CreateDirectory(saveBackupsPath);
 			Directory.CreateDirectory(scriptBackupsPath);
@@ -404,7 +424,7 @@ namespace CarrionManagerConsole
 				[Text.ConfigBackupsPath] = backupsPath,
 				[Text.ConfigCustomMapsPath] = customMapsPath,
 				[Text.ConfigAppDataPath] = appDataPath,
-				[Text.ConfigZippedMapsPath] = zippedMapsFolder,
+				//[Text.ConfigZippedMapsPath] = zippedMapsFolder,
 				[Text.ConfigManageSaves] = manageSaves ? Text.True : Text.False,
 				[Text.ConfigMappingTools] = mappingToolsEnabled ? Text.True : Text.False,
 			};
@@ -426,13 +446,16 @@ namespace CarrionManagerConsole
 		public static void SaveInfoFile(string path, Dictionary<string, string> settings) {
 			string fileText = string.Empty;
 			foreach (var setting in settings) {
-				var value = setting.Value.Replace("\n", Environment.NewLine + Text.InfoFileNewLine);
-				fileText += string.Format("{0}={1}{2}", setting.Key, setting.Value, Environment.NewLine);
+				string value = setting.Value == null ? string.Empty : setting.Value.Replace("\n", Environment.NewLine + Text.InfoFileNewLine);
+				fileText += string.Format("{0}={1}{2}", setting.Key, value, Environment.NewLine);
 			}
 			File.WriteAllText(path, fileText);
 		}
 
 		public static List<string> SplitIntoLines(string text, int maxWidth) {
+			if (string.IsNullOrWhiteSpace(text)) {
+				return new List<string>() { string.Empty };
+			}
 			List<string> ret = new List<string>();
 			string[] lines = text.Split("\n");
 			var regex = new Regex(@"(\S+)\s*");
@@ -465,9 +488,9 @@ namespace CarrionManagerConsole
 						}
 					}
 				}
-				if (currentLine != string.Empty) {
+				//if (currentLine != string.Empty) {
 					ret.Add(currentLine);
-				}
+				//}
 			}
 
 			return ret;

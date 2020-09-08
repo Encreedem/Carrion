@@ -54,6 +54,64 @@ namespace CarrionManagerConsole
 		[JsonIgnore]
 		public bool IsValid => Issues == null || Issues.Count == 0;
 
+		/// <summary>
+		/// Adds the level to the map's Levels and Scripts.
+		/// </summary>
+		/// <param name="levelName">The level name without an extension.</param>
+		public void AddLevel(string levelName) {
+			string[] levels = new string[Levels.Length + 1];
+			string[] scripts = new string[Scripts.Length + 1];
+			Levels.CopyTo(levels, 0);
+			Scripts.CopyTo(scripts, 0);
+			levels[^1] = levelName + Program.LevelFileExtension;
+			scripts[^1] = levelName + Program.ScriptFileExtension;
+			Array.Sort(levels);
+			Array.Sort(scripts);
+			Levels = levels;
+			Scripts = scripts;
+		}
+
+		public string[] GetLevelsWithoutExtension() {
+			var levelsWithoutExtension = new string[Levels.Length];
+			for (int i = 0; i < Levels.Length; ++i) {
+				levelsWithoutExtension[i] = Program.RemoveLevelExtension(Levels[i]);
+			}
+			return levelsWithoutExtension;
+		}
+
+		/// <summary>
+		/// Removes the level from the map's Levels and Scripts without deleting the file.
+		/// </summary>
+		/// <param name="levelName">The level name without an extension.</param>
+		public void RemoveLevel(string levelName) {
+			string fullLevelName = levelName + Program.LevelFileExtension;
+			string fullScriptName = levelName + Program.ScriptFileExtension;
+			Levels = Levels.Where(name => name != fullLevelName).ToArray();
+			Scripts = Scripts.Where(name => name != fullScriptName).ToArray();
+		}
+
+		/// <summary>
+		/// Renames the entries in the map's Levels and Scripts.
+		/// </summary>
+		/// <param name="currentName">The current name without an extension.</param>
+		/// <param name="newName">The new name without an extension.</param>
+		public void RenameLevel(string currentName, string newName) {
+			string currentLevelName = currentName + Program.LevelFileExtension;
+			string currentScriptName = currentName + Program.ScriptFileExtension;
+			for (int i = 0; i < Levels.Length; i++) {
+				if (Levels[i] == currentLevelName) {
+					Levels[i] = newName + Program.LevelFileExtension;
+					break;
+				}
+			}
+			for (int i = 0; i < Scripts.Length; i++) {
+				if (Scripts[i] == currentScriptName) {
+					Scripts[i] = newName + Program.ScriptFileExtension;
+					break;
+				}
+			}
+		}
+
 		public void ShowIssues() {
 			GUI.Reset();
 			Console.WriteLine(Text.MapInfoMapName + Name);

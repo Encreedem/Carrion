@@ -24,6 +24,20 @@ namespace CarrionManagerConsole
 			MapPath = path;
 		}
 
+		public LoadableMap(Map map, string folderPath) : base(
+			map.Name,
+			map.Author,
+			map.Version,
+			map.ShortDescription,
+			map.LongDescription,
+			map.Levels,
+			map.Scripts,
+			map.StartupLevel,
+			map.IsWIP,
+			map.Issues) {
+			MapPath = folderPath;
+		}
+
 		// Get map info from folder
 		public LoadableMap(string folderPath) : base() {
 			LoadMap(folderPath);
@@ -74,11 +88,11 @@ namespace CarrionManagerConsole
 				if (mapInfo.ContainsKey(Text.MapInfoFileMapName)) {
 					Name = mapInfo[Text.MapInfoFileMapName];
 				}
-				if (mapInfo.ContainsKey(Text.MapInfoFileAuthorName)) {
-					Author = mapInfo[Text.MapInfoFileAuthorName];
-				}
 				if (mapInfo.ContainsKey(Text.MapInfoFileVersion)) {
 					Version = mapInfo[Text.MapInfoFileVersion];
+				}
+				if (mapInfo.ContainsKey(Text.MapInfoFileAuthorName)) {
+					Author = mapInfo[Text.MapInfoFileAuthorName];
 				}
 				if (mapInfo.ContainsKey(Text.MapInfoFileShortDescription)) {
 					ShortDescription = mapInfo[Text.MapInfoFileShortDescription];
@@ -103,6 +117,20 @@ namespace CarrionManagerConsole
 			} else {
 				return MapPath;
 			}
+		}
+
+		public void SaveMapInfo() {
+			var mapInfo = new Dictionary<string, string>() {
+				[Text.MapInfoFileMapName] = Name,
+				[Text.MapInfoFileVersion] = Version,
+				[Text.MapInfoFileAuthorName] = Author,
+				[Text.MapInfoFileShortDescription] = ShortDescription,
+				[Text.MapInfoFileLongDescription] = LongDescription,
+				[Text.MapInfoFileStartupLevel] = StartupLevel,
+				[Text.MapInfoFileIsWIP] = IsWIP.ToString(),
+			};
+			string infoFilePath = Path.Combine(MapPath, Program.MapInfoFileName);
+			Program.SaveInfoFile(infoFilePath, mapInfo);
 		}
 	}
 }

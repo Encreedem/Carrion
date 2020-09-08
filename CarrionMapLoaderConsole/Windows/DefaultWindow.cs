@@ -59,9 +59,9 @@ namespace CarrionManagerConsole
 				case Properties.Command.ShowBackupsWindow:
 					nextWindow = Program.backupsWindow;
 					break;
-				case Properties.Command.ShowMappingToolsWindow:
+				case Properties.Command.ShowMapEditorWindow:
 					if (Program.mappingToolsEnabled) {
-						nextWindow = Program.mappingToolsWindow;
+						nextWindow = Program.mapEditorWindow;
 					}
 					break;
 			}
@@ -117,12 +117,9 @@ namespace CarrionManagerConsole
 				2);
 		}
 
-		public abstract void PreShow();
-
 		public abstract void Selected(GUI.Selection selection);
 
-		public void Show() {
-			PreShow();
+		public virtual void Show() {
 			Menu.NavigateToDefault();
 			DrawAll();
 			WindowQuit = false;

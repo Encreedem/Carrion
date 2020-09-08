@@ -1,8 +1,9 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp3.1</TargetFramework>
+    <ApplicationIcon>cmcIcon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -10,12 +11,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Documents\Readme.txt" />
     <None Remove="Templates\Empty\empty.cgs" />
     <None Remove="Templates\Empty\empty.json" />
     <None Remove="Templates\MapInfo.txt" />
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="Readme.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="Templates\Empty\empty.cgs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

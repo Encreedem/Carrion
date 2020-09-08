@@ -34,7 +34,7 @@ namespace CarrionManagerConsole
 			ShowMapInstaller,
 			ShowSaveManager,
 			ShowBackupsWindow,
-			ShowMappingToolsWindow,
+			ShowMapEditorWindow,
 		}
 
 		public enum GameLaunchMethod
@@ -67,7 +67,7 @@ namespace CarrionManagerConsole
 			MinorHeaderBG = ConsoleColor.Gray, MinorHeaderFG = ConsoleColor.Black,
 			SeparatorBG = ConsoleColor.Gray, SeparatorFG = ConsoleColor.Black,
 			ContentBG = ConsoleColor.Black, ContentFG = ConsoleColor.White,
-			SelectedBG = ConsoleColor.DarkGray, SelectedFG = ConsoleColor.White,
+			SelectedBG = ConsoleColor.DarkBlue, SelectedFG = ConsoleColor.White,
 			HighlightBG = ConsoleColor.Black, HighlightFG = ConsoleColor.White,
 			DisabledBG = ConsoleColor.Black, DisabledFG = ConsoleColor.DarkGray,
 			SelectedDisabledBG = ConsoleColor.White, SelectedDisabledFG = ConsoleColor.DarkGray,
@@ -83,7 +83,7 @@ namespace CarrionManagerConsole
 			MapInstallerWindowTitleBG = ConsoleColor.DarkCyan, MapInstallerWindowTitleFG = ConsoleColor.White,
 			SaveMangerWindowTitleBG = ConsoleColor.DarkYellow, SaveMangerWindowTitleFG = ConsoleColor.White,
 			BackupsWindowTitleBG = ConsoleColor.DarkMagenta, BackupsWindowTitleFG = ConsoleColor.White,
-			MappingToolsWindowBG = ConsoleColor.DarkBlue, MappingToolsWindowFG = ConsoleColor.White;
+			MapEditorWindowBG = ConsoleColor.DarkBlue, MapEditorWindowFG = ConsoleColor.White;
 	}
 
 	public class Text
@@ -109,7 +109,12 @@ namespace CarrionManagerConsole
 			MainGame = "Main Game",
 			Unknown = "Unknown",
 			MapName = "Map Name",
+			LevelName = "Level Name",
 			Verify = "Verify",
+			Export = "Export",
+			ExportWithTimestamp = "Export with Timestamp",
+			Delete = "Delete",
+			Rename = "Rename",
 
 			// CheckBox
 			CheckBoxLeftSybmol = "[",
@@ -118,9 +123,11 @@ namespace CarrionManagerConsole
 			CheckBoxUnchecked = " ",
 
 			// Errors
+			AreYouSureYouWantToContinue = "Are you sure you want to continue?",
 			PressAnyKeyToContinue = "Press any key to continue...",
 			PressAnyKeyToQuit = "Press any key to quit...",
 			UnexpectedErrorOccured = "An unexpected error occured!",
+			ErrorWithMessage = "ERROR: {0}",
 			InvalidAlignment = "Invalid Alignment!",
 
 			// Saves & Backups
@@ -151,6 +158,9 @@ namespace CarrionManagerConsole
 			MapContainsNoLevels = "Map contains no levels!",
 			MapContainsNoScripts = "Map contains no scripts!",
 
+			// Level Issues
+			LevelOrScriptAlreadyExists = "Level {0} and/or script {1} already exists!",
+
 			// Window Titles
 			NavigationWindowTitle = "Navigation Window",
 			NavigationWindowListHeader = "Windows",
@@ -158,13 +168,15 @@ namespace CarrionManagerConsole
 			MapInstallerWindowTitle = "Map Installer",
 			SaveManagerWindowTitle = "Save File Manager",
 			BackupsWindowTitle = "Backups",
-			MappingToolsWindowTitle = "Mapping Tools",
+			MapEditorWindowTitle = "Mapping Tools",
 
 			// Map Installer Window
 			MapInstallerInstalledMapsHeader = "Installed Maps",
 			MapInstallerAvailableMapsHeader = "Available Custom Maps",
 			PromptReinstall = "Map \"{0}\" is already installed. Reinstall?",
 			UninstallingMap = "Uninstalling map {0}...",
+			Uninstalled = " uninstalled!",
+			CantUninstallWIP = "Can't uninstall map because it is marked as \"work in progress\"",
 
 			// Save Manager Window
 			SaveManagerWindowCurrentSave = "Current saved map:",
@@ -173,13 +185,25 @@ namespace CarrionManagerConsole
 			DisabledManageSaves = "Disabled Auto-backup & -loading of save files.",
 			EnabledManageSaves = "Enabled Auto-backup & -loading of save files.",
 
-			// Mapping Tools Window
+			// Map Editor Window
 			ShowOnlyWipMaps = "Only show WIP maps",
-			MappingToolsAddMap = "Add Map...",
-			MappingToolsCommandEditMapInfo = "Edit Map Info",
-			MappingToolsCommandEditLevels = "Edit Levels",
-			MappingToolsCommandAddNewLevel = "Add New Level",
-			MappingToolsCommandAssignLevels = "Assign Existing Levels",
+			MapEditorAddMap = "Add Map...",
+			MapEditorCommandEditMapInfo = "Edit Map Info",
+			MapEditorCommandEditLevels = "Edit Levels",
+			MapEditorCommandAddNewLevel = "Add New Level",
+			MapEditorCommandAssignLevels = "Assign/Unassign Existing Levels",
+			AddedLevel = "Added level \"{0}\".",
+			RevertLevelRename = "Renaming level back to \"{0}\"...",
+			RevertScriptRename = "Renaming script back to \"{0}\"...",
+			Renamed = " renamed!",
+			ConfirmDelete = "WARNING: This will PERMANENTLY delete \"{0}\" and \"{1}\".",
+			UnassignInsteadOfDelteInstructions = "If you only want to remove the level from the map, unassign it via \"Assign/Unassign Existing Levels\"",
+			Deleting = "Deleting \"{0}\"...",
+			Deleted = " deleted!",
+			ConfirmExportAndOverwrite = "Custom map folder \"{0}\" already exists. Overwrite or export with timestamp?",
+			ExportingMap = "Exporting map \"{0}\"...",
+			Exported = " exported!",
+			MapStillWipWarning = "WARNING: Map is still marked as \"Work in progress\". If you publish this, users can't uninstall it.",
 
 			// Info File
 			InfoFileNewLine = "_",
@@ -229,7 +253,7 @@ namespace CarrionManagerConsole
 			ConfigCustomMapsPathDescription = "CustomMapsPath: The full path to the folder containing all your extracted custom maps",
 			ConfigAppDataPathDescription = "AppDataPath:    The full path to the folder containing Carrion's saves folder and settings.json",
 			ConfigZippedMapsPathDescription = "ZippedMapsPath: The full path to the folder where this program will look for zipped maps.",
-			ConfigMappingToolsDescription = "MappingTools:   Whether to display the Mapping Tools window (only needed by mappers).",
+			ConfigMappingToolsDescription = "MappingTools:   Whether to display mapping tools (only needed by mappers).",
 			ConfigManageSavesDescription = "ManageSaves:    Whether saves should automatically be backed up and loaded when you launch a map.",
 			ConfigInvalidValue = "ERROR: Setting \"{0}\" has invalid value \"{1}\"!",
 			ConfigInvalidDirectoryPath = "ERROR: Setting \"{0}\": Path is not a valid directory or does not exist:\n{1}",

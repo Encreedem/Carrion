@@ -112,11 +112,6 @@ namespace CarrionManagerConsole
 			return ((GetCurrentSavedMapName() == map.Name) || (BackupSavesContainMap(map)));
 		}
 
-		public override void PreShow() {
-			RefreshInfo();
-			WriteSummary();
-		}
-
 		public void SetCurrentSave(string mapName) {
 			var saveInfo = GenerateSaveInfo(mapName);
 			Program.SaveInfoFile(Program.saveInfoFilePath, saveInfo);
@@ -153,6 +148,12 @@ namespace CarrionManagerConsole
 					WriteSummary();
 					break;
 			}
+		}
+
+		public override void Show() {
+			RefreshInfo();
+			WriteSummary();
+			base.Show();
 		}
 
 		public void ShowBackups() {

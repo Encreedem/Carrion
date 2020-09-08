@@ -264,8 +264,8 @@ namespace CarrionManagerConsole
 			SettingsCouldNotBeLoaded = "Settings could not be loaded! See previous messages for details.",
 
 			// Path
-			PathCurrentDirectoryIndicator = @".\",
-			PathUserDirectoryIndicator = @"[user]\",
+			PathCurrentDirectoryIndicator = @".",
+			PathUserDirectoryIndicator = @"[user]",
 
 			// Controls
 			DefaultControls = "Arrow Keys/PgUp/PgDown: Navigate    Enter/Space: Confirm    Escape/Num0: Back/Cancel    1-9: Switch Window",

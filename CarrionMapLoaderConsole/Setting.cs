@@ -71,11 +71,11 @@ namespace CarrionManagerConsole
 			if (path.StartsWith(Text.PathCurrentDirectoryIndicator)) {
 				path = Path.Combine(
 					Directory.GetCurrentDirectory(),
-					path.Substring(Text.PathCurrentDirectoryIndicator.Length));
+					path.Substring(Text.PathCurrentDirectoryIndicator.Length + 1));
 			} else if (path.ToLower().StartsWith(Text.PathUserDirectoryIndicator)) {
 				path = Path.Combine(
 					Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-					path.Substring(Text.PathUserDirectoryIndicator.Length));
+					path.Substring(Text.PathUserDirectoryIndicator.Length + 1));
 			}
 			return path;
 		}
@@ -104,7 +104,7 @@ namespace CarrionManagerConsole
 				[Text.ConfigCustomMapsPath] = Text.ConfigCustomMapsPathDescription,
 				[Text.ConfigAppDataPath] = Text.ConfigAppDataPathDescription,
 				[Text.ConfigManageSaves] = Text.ConfigManageSavesDescription,
-				[Text.ConfigZippedMapsPath] = Text.ConfigZippedMapsPathDescription,
+				//[Text.ConfigZippedMapsPath] = Text.ConfigZippedMapsPathDescription,
 				[Text.ConfigMappingTools] = Text.ConfigMappingToolsDescription,
 			};
 			ConversionTable.GameLaunchMethod = new Dictionary<string, Properties.GameLaunchMethod>() {
